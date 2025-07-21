@@ -55,10 +55,12 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegist
     }
 
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
+        Log.d("EkycPlugin", "Plugin reattached to activity for config changes")
         onAttachedToActivity(binding)
     }
 
     override fun onDetachedFromActivityForConfigChanges() {
+        Log.d("EkycPlugin", "Plugin detached from activity for config changes")
         onDetachedFromActivity()
     }
 
@@ -71,12 +73,15 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegist
         Log.d("EkycPlugin", "Method called: ${call.method}")
         when (call.method) {
             "checkNfc" -> {
+                Log.d("EkycPlugin", "Checking NFC support and enabled status")
                 if (nfcReader == null) {
+                    Log.e("EkycPlugin", "nfcReader is null!")
                     result.error("NFC_READER_NOT_READY", "NFC Reader not initialized", null)
                     return
                 }
                 val supported = nfcReader!!.isNfcSupported()
                 val enabled = nfcReader!!.isNfcEnabled()
+                Log.d("EkycPlugin", "NFC supported: $supported, enabled: $enabled")
                 result.success(mapOf("supported" to supported, "enabled" to enabled))
             }
             "startNfc" -> {
