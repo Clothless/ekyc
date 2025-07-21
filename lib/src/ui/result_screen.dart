@@ -58,8 +58,14 @@ class _ResultScreenState extends State<ResultScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      String errorMsg = e.toString();
+      if (errorMsg.contains('NFC_TIMEOUT')) {
+        errorMsg = 'No NFC document detected. Please hold your document close to the phone and try again.';
+      } else {
+        errorMsg = 'NFC Read Error: $e';
+      }
       setState(() {
-        _status = 'NFC Read Error: $e';
+        _status = errorMsg;
         _isLoading = false;
         _nfcStage = 'error';
       });
@@ -96,10 +102,23 @@ class _ResultScreenState extends State<ResultScreen> {
               Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  child: Text(
-                    _status,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium,
+                  child: Column(
+                    children: [
+                      Text(
+                        _status,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      if (_nfcStage == 'error')
+                        Padding(
+                          padding: const EdgeInsets.only(top: 16.0),
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Retry NFC Scan'),
+                            onPressed: _readNfcTag,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),

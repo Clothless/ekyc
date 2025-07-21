@@ -74,11 +74,13 @@ class MethodChannelEkyc extends EkycPlatform {
     required String dob,
     required String doe,
   }) async {
+    // Always disconnect before starting a new scan
     try {
       if (await _nfcProvider.isConnected()) {
-        // Should not happen, but as a safeguard
         await _nfcProvider.disconnect();
       }
+    } catch (_) {}
+    try {
       await _nfcProvider.connect();
       final passport = dmrtd.Passport(_nfcProvider);
       final bacKey = dmrtd.DBAKey(docNumber, _parseDate(dob), _parseDate(doe));
@@ -114,11 +116,17 @@ class MethodChannelEkyc extends EkycPlatform {
         'dateOfIssue': dg12?.dateOfIssue == null ? null : _formatDate(dg12!.dateOfIssue!),
       };
     } catch (e) {
+      // Defensive disconnect on error
       try {
         if (await _nfcProvider.isConnected()) {
           await _nfcProvider.disconnect();
         }
       } catch (_) {}
+      // Parse known errors for user-friendly messages
+      final errorMsg = e.toString();
+      if (errorMsg.contains('Polling tag timeout') || errorMsg.contains('408')) {
+        throw Exception('NFC_TIMEOUT: No NFC document detected. Please hold your document close to the phone and try again.');
+      }
       throw Exception('eKYC NFC read failed: $e');
     } finally {
       try {
