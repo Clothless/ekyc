@@ -95,6 +95,32 @@ class Ekyc {
 
     if (docType == null) return null; // User cancelled
 
+    // 1.5. Check NFC status before proceeding
+    try {
+      final nfcStatus = await EkycPlatform.instance.checkNfc();
+      if (nfcStatus is Map && nfcStatus['enabled'] == false) {
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('NFC Not Enabled'),
+            content: const Text('NFC is not enabled. Please enable NFC in your device settings and try again.'),
+            actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK'))],
+          ),
+        );
+        return null;
+      }
+    } catch (e) {
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('NFC Check Failed'),
+          content: Text('Failed to check NFC status: $e'),
+          actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK'))],
+        ),
+      );
+      return null;
+    }
+
     // 2. Push MRZ Scanner
     final mrzData = await Navigator.of(context).push<Map<String, String>>(
       MaterialPageRoute(
