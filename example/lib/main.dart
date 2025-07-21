@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:ekyc/ekyc.dart';
+import 'nfc_example.dart';
 
 void main() {
   runApp(const MyApp());
@@ -17,12 +18,15 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   String _platformVersion = 'Unknown';
+  String _nfcStatus = 'Unknown';
+  String _nfcData = 'No data';
   final _ekycPlugin = Ekyc();
 
   @override
   void initState() {
     super.initState();
     initPlatformState();
+    checkNfcStatus();
   }
 
   // Platform messages are asynchronous, so we initialize in an async method.
@@ -47,6 +51,19 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
+  Future<void> checkNfcStatus() async {
+    try {
+      final nfcStatus = await _ekycPlugin.checkNfc();
+      setState(() {
+        _nfcStatus = 'Supported: ${nfcStatus['supported']}, Enabled: ${nfcStatus['enabled']}';
+      });
+    } on PlatformException catch (e) {
+      setState(() {
+        _nfcStatus = 'Error: ${e.message}';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -56,15 +73,61 @@ class _MyAppState extends State<MyApp> {
         ),
         body: Center(
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text('Running on: $_platformVersion\n'),
+              Text('NFC Status: $_nfcStatus\n'),
+              Text('NFC Data: $_nfcData\n'),
+              const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () async {
-                  await _ekycPlugin.checkNfc().then((value) => {
-                    print(value)
-                  });
+                  try {
+                    final result = await _ekycPlugin.readNfc();
+                    setState(() {
+                      _nfcData = result.toString();
+                    });
+                    print('NFC Result: $result');
+                  } on PlatformException catch (e) {
+                    setState(() {
+                      _nfcData = 'Error: ${e.message}';
+                    });
+                    print('NFC Error: ${e.message}');
+                  }
                 },
-                child: const Text('Start E-KYC'),
+                child: const Text('Read NFC Tag'),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: checkNfcStatus,
+                child: const Text('Check NFC Status'),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const NfcExample()),
+                  );
+                },
+                child: const Text('Open NFC Example'),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: () async {
+                  try {
+                    final result = await _ekycPlugin.testConnection();
+                    setState(() {
+                      _nfcData = 'Test Result: $result';
+                    });
+                    print('Test Result: $result');
+                  } catch (e) {
+                    setState(() {
+                      _nfcData = 'Test Error: $e';
+                    });
+                    print('Test Error: $e');
+                  }
+                },
+                child: const Text('Test Plugin Connection'),
               ),
             ],
           ),
