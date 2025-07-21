@@ -3,6 +3,7 @@ import 'package:camera/camera.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:mrz_parser/mrz_parser.dart' as MrzParser;
 import 'package:flutter/foundation.dart';
+import '../../ekyc_platform_interface.dart';
 
 enum DocumentType { idCard, passport }
 
@@ -118,6 +119,19 @@ class _MrzScannerScreenState extends State<MrzScannerScreen> {
     }
   }
 
+  Future<void> _checkNfcAndScan() async {
+    try {
+      final nfcStatus = await EkycPlatform.instance.checkNfc();
+      if (nfcStatus is Map && nfcStatus['enabled'] == false) {
+        await _showErrorDialog('NFC is not enabled. Please enable NFC in your device settings and try again.');
+        return;
+      }
+      await _scanFrame();
+    } catch (e) {
+      await _showErrorDialog('Failed to check NFC status: $e');
+    }
+  }
+
   List<String>? _extractMrz(String ocrText) {
     final lines = ocrText.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
 
@@ -173,7 +187,7 @@ class _MrzScannerScreenState extends State<MrzScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Scan MRZ')), 
+      appBar: AppBar(title: const Text('Scan MRZ')),
       body: _controller == null
           ? const Center(child: CircularProgressIndicator())
           : FutureBuilder(
@@ -182,29 +196,19 @@ class _MrzScannerScreenState extends State<MrzScannerScreen> {
                 if (snapshot.connectionState != ConnectionState.done) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                return Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    CameraPreview(_controller!),
-                    
-                    // Card Guide Box
-                    _buildGuideBox(),
-
-                    if (_isProcessing)
-                       const Center(child: CircularProgressIndicator()),
-                    
-                    Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: ElevatedButton.icon(
-                          onPressed: _isProcessing ? null : _scanFrame,
-                          icon: const Icon(Icons.camera_alt),
-                          label: const Text('Scan Document'),
-                        ),
-                      ),
-                    ),
-                  ],
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _isProcessing ? null : _checkNfcAndScan,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CameraPreview(_controller!),
+                      // Card Guide Box
+                      _buildGuideBox(),
+                      if (_isProcessing)
+                        const Center(child: CircularProgressIndicator()),
+                    ],
+                  ),
                 );
               },
             ),
