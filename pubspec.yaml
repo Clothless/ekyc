@@ -4,14 +4,17 @@ version: 0.0.1
 homepage:
 
 environment:
-  sdk: ^3.5.3
+  sdk: '>=3.5.3 <4.0.0'
   flutter: '>=3.3.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  flutter_mrz_scanner: ^2.1.1
   plugin_platform_interface: ^2.0.2
+  dmrtd:
+    git:
+      url: https://github.com/ZeroPass/dmrtd.git
+      ref: v2.0.0
 
 dev_dependencies:
   flutter_test:

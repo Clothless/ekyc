@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:ekyc/ekyc.dart';
@@ -14,7 +16,8 @@ class _NfcExampleState extends State<NfcExample> {
   Map<String, dynamic>? _nfcStatus;
   Map<String, dynamic>? _nfcData;
   String _errorMessage = '';
-  bool _isLoading = false;
+  bool _isListening = false;
+  StreamSubscription<dynamic>? _nfcSubscription;
 
   @override
   void initState() {
@@ -22,45 +25,105 @@ class _NfcExampleState extends State<NfcExample> {
     _checkNfcStatus();
   }
 
-  Future<void> _checkNfcStatus() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = '';
-    });
+  @override
+  void dispose() {
+    _nfcSubscription?.cancel();
+    if (_isListening) {
+      _stopNfcListener();
+    }
+    super.dispose();
+  }
 
+  Future<void> _checkNfcStatus() async {
     try {
       final status = await _ekyc.checkNfc();
-      setState(() {
-        _nfcStatus = status;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _nfcStatus = Map<String, dynamic>.from(status);
+        });
+      }
     } on PlatformException catch (e) {
-      setState(() {
-        _errorMessage = 'Error checking NFC status: ${e.message}';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Error checking NFC status: ${e.message}';
+        });
+      }
     }
   }
 
-  Future<void> _readNfcTag() async {
+  Future<void> _startNfcListener() async {
     setState(() {
-      _isLoading = true;
+      _isListening = true;
       _errorMessage = '';
       _nfcData = null;
     });
 
     try {
-      final data = await _ekyc.readNfc();
-      setState(() {
-        _nfcData = data;
-        _isLoading = false;
+      await _ekyc.startNfc();
+      _nfcSubscription = _ekyc.nfcDataStream.listen((data) {
+        setState(() {
+          _nfcData = Map<String, dynamic>.from(data);
+        });
+        Navigator.of(context).pop(); // Close the dialog
+        _stopNfcListener();
+      }, onError: (error) {
+        setState(() {
+          _errorMessage = 'Error reading NFC tag: $error';
+        });
+        Navigator.of(context).pop(); // Close the dialog
+        _stopNfcListener();
       });
+
+      _showWaitingDialog();
     } on PlatformException catch (e) {
       setState(() {
-        _errorMessage = 'Error reading NFC tag: ${e.message}';
-        _isLoading = false;
+        _errorMessage = 'Error starting NFC listener: ${e.message}';
+        _isListening = false;
       });
     }
+  }
+
+  Future<void> _stopNfcListener() async {
+    try {
+      await _ekyc.stopNfc();
+    } on PlatformException catch (e) {
+      // Handle error if needed
+    } finally {
+      setState(() {
+        _isListening = false;
+        _nfcSubscription?.cancel();
+        _nfcSubscription = null;
+      });
+    }
+  }
+
+  void _showWaitingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Reading NFC'),
+          content: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Waiting for NFC tag...'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _stopNfcListener();
+              },
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _buildNfcStatusCard() {
@@ -68,7 +131,7 @@ class _NfcExampleState extends State<NfcExample> {
       return const Card(
         child: ListTile(
           title: Text('NFC Status'),
-          subtitle: Text('Unknown'),
+          subtitle: Text('Checking...'),
         ),
       );
     }
@@ -93,7 +156,7 @@ class _NfcExampleState extends State<NfcExample> {
       return const Card(
         child: ListTile(
           title: Text('NFC Data'),
-          subtitle: Text('No data read yet'),
+          subtitle: Text('Press "Read NFC Tag" to start'),
         ),
       );
     }
@@ -116,7 +179,7 @@ class _NfcExampleState extends State<NfcExample> {
                   Text('Technologies: ${_nfcData!['techList'].join(', ')}'),
                   const SizedBox(height: 8),
                 ],
-                if (_nfcData!['ndefMessages'] != null && 
+                if (_nfcData!['ndefMessages'] != null &&
                     (_nfcData!['ndefMessages'] as List).isNotEmpty) ...[
                   const Text('NDEF Messages:', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
@@ -131,18 +194,18 @@ class _NfcExampleState extends State<NfcExample> {
                           Text('Message $index:'),
                           if (message['records'] != null)
                             ...(message['records'] as List).map((record) => Padding(
-                              padding: const EdgeInsets.only(left: 16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Type: ${record['type']}'),
-                                  Text('Payload: ${record['payload']}'),
-                                  if (record['mimeType'] != null && record['mimeType'].isNotEmpty)
-                                    Text('MIME Type: ${record['mimeType']}'),
-                                  const SizedBox(height: 4),
-                                ],
-                              ),
-                            )),
+                                  padding: const EdgeInsets.only(left: 16.0),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Type: ${record['type']}'),
+                                      Text('Payload: ${record['payload']}'),
+                                      if (record['mimeType'] != null && record['mimeType'].isNotEmpty)
+                                        Text('MIME Type: ${record['mimeType']}'),
+                                      const SizedBox(height: 4),
+                                    ],
+                                  ),
+                                )),
                         ],
                       ),
                     );
@@ -188,15 +251,15 @@ class _NfcExampleState extends State<NfcExample> {
               ),
             if (_errorMessage.isNotEmpty) const SizedBox(height: 16),
             ElevatedButton.icon(
-              onPressed: _isLoading ? null : _readNfcTag,
-              icon: _isLoading 
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.nfc),
-              label: Text(_isLoading ? 'Reading...' : 'Read NFC Tag'),
+              onPressed: _isListening ? null : _startNfcListener,
+              icon: _isListening
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.nfc),
+              label: Text(_isListening ? 'Listening...' : 'Read NFC Tag'),
             ),
             const SizedBox(height: 16),
             Expanded(child: _buildNfcDataCard()),

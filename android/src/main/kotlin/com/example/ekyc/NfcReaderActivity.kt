@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.IntentFilter
+import android.nfc.NdefRecord
 import android.nfc.NfcAdapter
 import android.nfc.NdefMessage
 import android.nfc.Tag
@@ -11,7 +12,9 @@ import android.nfc.tech.Ndef
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
+import androidx.annotation.Keep
 
+@Keep
 class EkycNfcReader(private val activity: Activity) {
 
     private val nfcAdapter: NfcAdapter? = NfcAdapter.getDefaultAdapter(activity)
@@ -49,32 +52,48 @@ class EkycNfcReader(private val activity: Activity) {
         nfcAdapter?.disableForegroundDispatch(activity)
     }
 
-    fun handleIntent(intent: Intent): String? {
+    fun readNfc(intent: Intent): Map<String, Any>? {
         if (intent.action == NfcAdapter.ACTION_NDEF_DISCOVERED ||
             intent.action == NfcAdapter.ACTION_TAG_DISCOVERED ||
             intent.action == NfcAdapter.ACTION_TECH_DISCOVERED
         ) {
+            val result = mutableMapOf<String, Any>()
+            
+            // Get tag ID
+            val tag: Tag? = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
+            tag?.let {
+                val tagId = it.id.joinToString(":") { b -> "%02X".format(b) }
+                result["tagId"] = tagId
+                Log.d("EkycNfcReader", "NFC Tag ID: $tagId")
+            }
+            
+            // Get NDEF messages if available
             val rawMessages = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)
             if (rawMessages != null) {
+                val messages = mutableListOf<Map<String, Any>>()
                 for (message in rawMessages) {
                     val ndefMessage = message as NdefMessage
                     for (record in ndefMessage.records) {
-                        val payload = String(record.payload)
-                        Log.d("EkycNfcReader", "NFC Tag Payload: $payload")
-                        Toast.makeText(activity, "NFC Payload: $payload", Toast.LENGTH_SHORT).show()
-                        return payload
+                        val recordData = mutableMapOf<String, Any>()
+                        recordData["type"] = String(record.type)
+                        recordData["payload"] = String(record.payload)
+                        recordData["mimeType"] = record.toMimeType() ?: ""
+                        messages.add(recordData)
+                        Log.d("EkycNfcReader", "NFC Record - Type: ${recordData["type"]}, Payload: ${recordData["payload"]}")
                     }
                 }
-            } else {
-                val tag: Tag? = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
-                tag?.let {
-                    val tagId = it.id.joinToString(":") { b -> "%02X".format(b) }
-                    Log.d("EkycNfcReader", "NFC Tag ID: $tagId")
-                    Toast.makeText(activity, "NFC Tag ID: $tagId", Toast.LENGTH_SHORT).show()
-                    return tagId
-                }
+                result["ndefMessages"] = messages
             }
+            
+            // Get tech list
+            tag?.let {
+                result["techList"] = it.techList.toList()
+            }
+            
+            Toast.makeText(activity, "NFC Tag detected: ${result["tagId"]}", Toast.LENGTH_SHORT).show()
+            return result
         }
         return null
     }
 }
+

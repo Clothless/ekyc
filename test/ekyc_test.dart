@@ -10,6 +10,26 @@ class MockEkycPlatform
 
   @override
   Future<String?> getPlatformVersion() => Future.value('42');
+
+  @override
+  Future<dynamic> checkNfc() => Future.value({
+    'supported': true,
+    'enabled': true,
+  });
+
+  @override
+  Future<dynamic> readNfc() => Future.value({
+    'tagId': '04:A3:B2:C1:D0:E9:F8',
+    'ndefMessages': [],
+    'techList': ['android.nfc.tech.Ndef']
+  });
+
+  @override
+  Future<dynamic> onNfcTagDetected() => Future.value({
+    'tagId': '04:A3:B2:C1:D0:E9:F8',
+    'ndefMessages': [],
+    'techList': ['android.nfc.tech.Ndef']
+  });
 }
 
 void main() {
@@ -25,5 +45,35 @@ void main() {
     EkycPlatform.instance = fakePlatform;
 
     expect(await ekycPlugin.getPlatformVersion(), '42');
+  });
+
+  test('checkNfc', () async {
+    Ekyc ekycPlugin = Ekyc();
+    MockEkycPlatform fakePlatform = MockEkycPlatform();
+    EkycPlatform.instance = fakePlatform;
+
+    final result = await ekycPlugin.checkNfc();
+    expect(result['supported'], true);
+    expect(result['enabled'], true);
+  });
+
+  test('readNfc', () async {
+    Ekyc ekycPlugin = Ekyc();
+    MockEkycPlatform fakePlatform = MockEkycPlatform();
+    EkycPlatform.instance = fakePlatform;
+
+    final result = await ekycPlugin.readNfc();
+    expect(result['tagId'], '04:A3:B2:C1:D0:E9:F8');
+    expect(result['techList'], ['android.nfc.tech.Ndef']);
+  });
+
+  test('onNfcTagDetected', () async {
+    Ekyc ekycPlugin = Ekyc();
+    MockEkycPlatform fakePlatform = MockEkycPlatform();
+    EkycPlatform.instance = fakePlatform;
+
+    final result = await ekycPlugin.onNfcTagDetected();
+    expect(result['tagId'], '04:A3:B2:C1:D0:E9:F8');
+    expect(result['techList'], ['android.nfc.tech.Ndef']);
   });
 }

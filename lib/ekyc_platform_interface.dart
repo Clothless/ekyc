@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'ekyc_method_channel.dart';
@@ -30,4 +31,22 @@ abstract class EkycPlatform extends PlatformInterface {
   Future<dynamic> checkNfc() {
     throw UnimplementedError('checkNfc() has not been implemented.');
   }
+
+  Future<String> startNfc() {
+    throw UnimplementedError('startNfc() has not been implemented.');
+  }
+
+  Future<String> stopNfc() {
+    throw UnimplementedError('stopNfc() has not been implemented.');
+  }
+
+  Stream<dynamic> get nfcDataStream {
+    throw UnimplementedError('nfcDataStream has not been implemented.');
+  }
+
+  Future<Map<String, dynamic>> readCard({
+    required String docNumber,
+    required String dob,
+    required String doe,
+  });
 }
