@@ -1,6 +1,8 @@
-
+import 'package:flutter/material.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'ekyc_platform_interface.dart';
+import 'src/ui/mrz_scanner_screen.dart';
+import 'src/ui/result_screen.dart';
 
 class EkycResult {
   final String? nin;
@@ -52,53 +54,68 @@ class EkycResult {
   }
 
   Map<String, dynamic> toMap() => {
-    'nin': nin,
-    'name': name,
-    'nameArabic': nameArabic,
-    'address': address,
-    'placeOfBirth': placeOfBirth,
-    'documentNumber': documentNumber,
-    'gender': gender,
-    'dateOfBirth': dateOfBirth,
-    'dateOfExpiry': dateOfExpiry,
-    'nationality': nationality,
-    'country': country,
-    'issuingAuthority': issuingAuthority,
-    'dateOfIssue': dateOfIssue,
-  };
+        'nin': nin,
+        'name': name,
+        'nameArabic': nameArabic,
+        'address': address,
+        'placeOfBirth': placeOfBirth,
+        'documentNumber': documentNumber,
+        'gender': gender,
+        'dateOfBirth': dateOfBirth,
+        'dateOfExpiry': dateOfExpiry,
+        'nationality': nationality,
+        'country': country,
+        'issuingAuthority': issuingAuthority,
+        'dateOfIssue': dateOfIssue,
+      };
 }
 
 class Ekyc {
-  Future<EkycResult> readCard({
-    required String docNumber,
-    required String dob,
-    required String doe,
-  }) async {
-    final result = await EkycPlatform.instance.readCard(
-      docNumber: docNumber,
-      dob: dob,
-      doe: doe,
+  Future<EkycResult?> startKycFlow({required BuildContext context}) async {
+    // 1. Show Document Type Dialog
+    final docType = await showDialog<DocumentType>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select Document Type'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text('ID Card / Residence Permit'),
+              onTap: () => Navigator.of(context).pop(DocumentType.idCard),
+            ),
+            ListTile(
+              title: const Text('Passport'),
+              onTap: () => Navigator.of(context).pop(DocumentType.passport),
+            ),
+          ],
+        ),
+      ),
     );
-    return EkycResult.fromMap(result);
-  }
 
-  Future<String?> getPlatformVersion() {
-    return EkycPlatform.instance.getPlatformVersion();
-  }
+    if (docType == null) return null; // User cancelled
 
-  Future<dynamic> checkNfc() {
-    return EkycPlatform.instance.checkNfc();
-  }
+    // 2. Push MRZ Scanner
+    final mrzData = await Navigator.of(context).push<Map<String, String>>(
+      MaterialPageRoute(
+        builder: (context) => MrzScannerScreen(
+          documentType: docType,
+        ),
+      ),
+    );
 
-  Future<String> startNfc() {
-    return EkycPlatform.instance.startNfc();
-  }
+    if (mrzData == null) return null; // User cancelled scan
 
-  Future<String> stopNfc() {
-    return EkycPlatform.instance.stopNfc();
-  }
-
-  Stream<dynamic> get nfcDataStream {
-    return EkycPlatform.instance.nfcDataStream;
+    // 3. Trigger NFC read and return result
+    try {
+      final result = await EkycPlatform.instance.readCard(
+        docNumber: mrzData['docNumber']!,
+        dob: mrzData['dob']!,
+        doe: mrzData['doe']!,
+      );
+      return EkycResult.fromMap(result);
+    } catch (e) {
+      rethrow;
+    }
   }
 }

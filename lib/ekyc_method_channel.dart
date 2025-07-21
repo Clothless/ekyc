@@ -18,26 +18,45 @@ class MethodChannelEkyc extends EkycPlatform {
 
   @override
   Future<String?> getPlatformVersion() async {
-    final version = await methodChannel.invokeMethod<String>('getPlatformVersion');
-    return version;
+    try {
+      final version = await methodChannel.invokeMethod<String>('getPlatformVersion');
+      return version;
+    } catch (e) {
+      throw Exception('Failed to get platform version: $e');
+    }
   }
 
   @override
   Future<dynamic> checkNfc() async {
-    final result = await methodChannel.invokeMethod('checkNfc');
-    return result;
+    try {
+      final result = await methodChannel.invokeMethod('checkNfc');
+      if (result == null) {
+        throw Exception('No response from platform for checkNfc');
+      }
+      return result;
+    } catch (e) {
+      throw Exception('Failed to check NFC: $e');
+    }
   }
 
   @override
   Future<String> startNfc() async {
-    final result = await methodChannel.invokeMethod<String>('startNfc');
-    return result ?? 'Failed to start NFC';
+    try {
+      final result = await methodChannel.invokeMethod<String>('startNfc');
+      return result ?? 'Failed to start NFC';
+    } catch (e) {
+      throw Exception('Failed to start NFC: $e');
+    }
   }
 
   @override
   Future<String> stopNfc() async {
-    final result = await methodChannel.invokeMethod<String>('stopNfc');
-    return result ?? 'Failed to stop NFC';
+    try {
+      final result = await methodChannel.invokeMethod<String>('stopNfc');
+      return result ?? 'Failed to stop NFC';
+    } catch (e) {
+      throw Exception('Failed to stop NFC: $e');
+    }
   }
 
   @override
@@ -46,17 +65,22 @@ class MethodChannelEkyc extends EkycPlatform {
     return _nfcDataStream!;
   }
 
+  final MethodChannel _channel = const MethodChannel('ekyc');
+  final dmrtd.NfcProvider _nfcProvider = dmrtd.NfcProvider();
+
   @override
   Future<Map<String, dynamic>> readCard({
     required String docNumber,
     required String dob,
     required String doe,
   }) async {
-    // NFC reading and parsing logic using dmrtd
-    final nfc = dmrtd.NfcProvider();
     try {
-      await nfc.connect();
-      final passport = dmrtd.Passport(nfc);
+      if (await _nfcProvider.isConnected()) {
+        // Should not happen, but as a safeguard
+        await _nfcProvider.disconnect();
+      }
+      await _nfcProvider.connect();
+      final passport = dmrtd.Passport(_nfcProvider);
       final bacKey = dmrtd.DBAKey(docNumber, _parseDate(dob), _parseDate(doe));
       await passport.startSession(bacKey);
       final efCom = await passport.readEfCOM();
@@ -73,7 +97,6 @@ class MethodChannelEkyc extends EkycPlatform {
           dg12 = await passport.readEfDG12();
         } catch (_) {}
       }
-      await nfc.disconnect();
       // Build result map
       return {
         'nin': dg11?.personalNumber,
@@ -91,10 +114,18 @@ class MethodChannelEkyc extends EkycPlatform {
         'dateOfIssue': dg12?.dateOfIssue == null ? null : _formatDate(dg12!.dateOfIssue!),
       };
     } catch (e) {
-      if (await nfc.isConnected()) {
-        await nfc.disconnect();
-      }
+      try {
+        if (await _nfcProvider.isConnected()) {
+          await _nfcProvider.disconnect();
+        }
+      } catch (_) {}
       throw Exception('eKYC NFC read failed: $e');
+    } finally {
+      try {
+        if (await _nfcProvider.isConnected()) {
+          await _nfcProvider.disconnect();
+        }
+      } catch (_) {}
     }
   }
 

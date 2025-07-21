@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.example.ekyc_example"
     compileSdk = 35
-    ndkVersion = flutter.ndkVersion
+    ndkVersion "25.1.8937393" // use the highest one all plugins support
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8

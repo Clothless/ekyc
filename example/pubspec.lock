@@ -25,6 +25,46 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.1"
+  camera:
+    dependency: transitive
+    description:
+      name: camera
+      sha256: "26ff41045772153f222ffffecba711a206f670f5834d40ebf5eed3811692f167"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.11.0+2"
+  camera_android_camerax:
+    dependency: transitive
+    description:
+      name: camera_android_camerax
+      sha256: abcfa1ac32bd03116b4cfda7e8223ab391f01966e65823c064afe388550d1b3d
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.6.10+3"
+  camera_avfoundation:
+    dependency: transitive
+    description:
+      name: camera_avfoundation
+      sha256: ca36181194f429eef3b09de3c96280f2400693f9735025f90d1f4a27465fdd72
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.9.19"
+  camera_platform_interface:
+    dependency: transitive
+    description:
+      name: camera_platform_interface
+      sha256: "2f757024a48696ff4814a789b0bd90f5660c0fb25f393ab4564fb483327930e2"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.10.0"
+  camera_web:
+    dependency: transitive
+    description:
+      name: camera_web
+      sha256: "595f28c89d1fb62d77c73c633193755b781c6d2e0ebcd8dc25b763b514e6ba8f"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.5"
   characters:
     dependency: transitive
     description:
@@ -57,6 +97,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.2"
+  cross_file:
+    dependency: transitive
+    description:
+      name: cross_file
+      sha256: "7caf6a750a0c04effbb52a676dce9a4a592e10ad35c34d6d2d0e4811160d5670"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.4+2"
   crypto:
     dependency: transitive
     description:
@@ -163,6 +211,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.6.0"
+  flutter_plugin_android_lifecycle:
+    dependency: transitive
+    description:
+      name: flutter_plugin_android_lifecycle
+      sha256: "1c2b787f99bdca1f3718543f81d38aa1b124817dfeb9fb196201bea85b6134bf"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.26"
   flutter_test:
     dependency: "direct dev"
     description: flutter
@@ -178,6 +234,22 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  google_mlkit_commons:
+    dependency: transitive
+    description:
+      name: google_mlkit_commons
+      sha256: "9990a65f407a3ef6bae646bf10143faa93fec126683771465bc6c0b43fb0e6e9"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.8.1"
+  google_mlkit_text_recognition:
+    dependency: transitive
+    description:
+      name: google_mlkit_text_recognition
+      sha256: "179349417066fa2c275d7a6ed6cbceeb7fa265d73aacdb2d732f1a2991face0a"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.13.1"
   integration_test:
     dependency: "direct dev"
     description: flutter
@@ -263,6 +335,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.15.0"
+  mrz_parser:
+    dependency: transitive
+    description:
+      name: mrz_parser
+      sha256: a7efa848a7d91c538a1c364dc63864d4cb60556037c32218d846aea473e971a7
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.1"
   ndef:
     dependency: transitive
     description:
@@ -348,6 +428,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.2"
+  stream_transform:
+    dependency: transitive
+    description:
+      name: stream_transform
+      sha256: ad47125e588cfd37a9a7f86c7d6356dde8dfe89d071d293f80ca9e9273a33871
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.1.1"
   string_scanner:
     dependency: transitive
     description:
@@ -420,6 +508,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "14.2.5"
+  web:
+    dependency: transitive
+    description:
+      name: web
+      sha256: "868d88a33d8a87b18ffc05f9f030ba328ffefba92d6c127917a2ba740f9cfe4a"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.1"
   webdriver:
     dependency: transitive
     description:
