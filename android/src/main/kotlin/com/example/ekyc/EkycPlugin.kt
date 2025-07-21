@@ -120,6 +120,19 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegist
 
     override fun onNewIntent(intent: Intent): Boolean {
         Log.d("EkycPlugin", "onNewIntent called with action: ${intent.action}")
+        // Forward the intent to the dmrtd NfcProvider if available
+        try {
+            val nfcProviderField = this::class.java.getDeclaredField("_nfcProvider")
+            nfcProviderField.isAccessible = true
+            val nfcProvider = nfcProviderField.get(this)
+            val onNewIntentMethod = nfcProvider?.javaClass?.methods?.find { it.name == "onNewIntent" }
+            if (nfcProvider != null && onNewIntentMethod != null) {
+                onNewIntentMethod.invoke(nfcProvider, intent)
+                Log.d("EkycPlugin", "Forwarded intent to dmrtd NfcProvider.onNewIntent")
+            }
+        } catch (e: Exception) {
+            Log.e("EkycPlugin", "Failed to forward intent to dmrtd NfcProvider: $e")
+        }
         if (nfcReader != null && (intent.action == NfcAdapter.ACTION_NDEF_DISCOVERED || intent.action == NfcAdapter.ACTION_TAG_DISCOVERED || intent.action == NfcAdapter.ACTION_TECH_DISCOVERED)) {
             val nfcData = nfcReader!!.readNfc(intent)
             eventSink?.success(nfcData)
