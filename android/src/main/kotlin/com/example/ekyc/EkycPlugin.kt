@@ -15,6 +15,8 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
 import android.nfc.NfcAdapter
+import android.nfc.NdefMessage
+import android.nfc.Tag
 
 
 @Keep
@@ -27,6 +29,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegist
     private var activity: Activity? = null
     private var nfcReader: EkycNfcReader? = null
     private var binding: ActivityPluginBinding? = null
+    private var _nfcProvider: EkycNfcProvider? = null
 
     override fun onAttachedToEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
         Log.d("EkycPlugin", "Plugin attached to engine")
@@ -120,22 +123,35 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegist
 
     override fun onNewIntent(intent: Intent): Boolean {
         Log.d("EkycPlugin", "onNewIntent called with action: ${intent.action}")
-        // Forward the intent to the dmrtd NfcProvider if available
+
+        // Forward to dmrtd provider if available
         try {
-            val nfcProviderField = this::class.java.getDeclaredField("_nfcProvider")
-            nfcProviderField.isAccessible = true
-            val nfcProvider = nfcProviderField.get(this)
-            val onNewIntentMethod = nfcProvider?.javaClass?.methods?.find { it.name == "onNewIntent" }
-            if (nfcProvider != null && onNewIntentMethod != null) {
-                onNewIntentMethod.invoke(nfcProvider, intent)
-                Log.d("EkycPlugin", "Forwarded intent to dmrtd NfcProvider.onNewIntent")
-            }
+            _nfcProvider?.onNewIntent(intent)
+            Log.d("EkycPlugin", "Forwarded intent to dmrtd NfcProvider.onNewIntent")
         } catch (e: Exception) {
             Log.e("EkycPlugin", "Failed to forward intent to dmrtd NfcProvider: $e")
         }
-        if (nfcReader != null && (intent.action == NfcAdapter.ACTION_NDEF_DISCOVERED || intent.action == NfcAdapter.ACTION_TAG_DISCOVERED || intent.action == NfcAdapter.ACTION_TECH_DISCOVERED)) {
-            val nfcData = nfcReader!!.readNfc(intent)
-            eventSink?.success(nfcData)
+
+        // (Optional) Log NDEF/tag data for debugging
+        if (intent.action == NfcAdapter.ACTION_NDEF_DISCOVERED ||
+            intent.action == NfcAdapter.ACTION_TAG_DISCOVERED ||
+            intent.action == NfcAdapter.ACTION_TECH_DISCOVERED) {
+
+            val rawMessages = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)
+            if (rawMessages != null) {
+                for (message in rawMessages) {
+                    val ndefMessage = message as NdefMessage
+                    for (record in ndefMessage.records) {
+                        val payload = String(record.payload)
+                        Log.d("NfcReader", "Payload: $payload")
+                    }
+                }
+            } else {
+                val tag: Tag? = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
+                tag?.let {
+                    Log.d("NfcReader", "Tag ID: ${it.id.joinToString(":") { b -> "%02X".format(b) }}")
+                }
+            }
         }
         return false
     }
