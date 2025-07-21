@@ -44,6 +44,8 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegist
         nfcReader = EkycNfcReader(activity!!)
         binding.addOnNewIntentListener(this)
         Log.d("EkycPlugin", "NFC Reader initialized and NewIntentListener added")
+        // Log for foreground dispatch
+        Log.d("EkycPlugin", "(AUDIT) onAttachedToActivity: nfcReader = $nfcReader, activity = $activity")
     }
 
     override fun onDetachedFromActivity() {
@@ -52,6 +54,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegist
         activity = null
         binding = null
         nfcReader = null
+        Log.d("EkycPlugin", "(AUDIT) onDetachedFromActivity: nfcReader set to null")
     }
 
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
@@ -116,7 +119,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegist
     }
 
     override fun onNewIntent(intent: Intent): Boolean {
-        Log.d("EkycPlugin", "New Intent received: ${intent.action}")
+        Log.d("EkycPlugin", "onNewIntent called with action: ${intent.action}")
         if (nfcReader != null && (intent.action == NfcAdapter.ACTION_NDEF_DISCOVERED || intent.action == NfcAdapter.ACTION_TAG_DISCOVERED || intent.action == NfcAdapter.ACTION_TECH_DISCOVERED)) {
             val nfcData = nfcReader!!.readNfc(intent)
             eventSink?.success(nfcData)
