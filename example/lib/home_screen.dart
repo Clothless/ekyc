@@ -16,7 +16,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _startKyc() async {
     setState(() {
       _isLoading = true;
-      _status = '';
+      _status = 'Keep your document close to the back of your phone while we read it.';
       _result = null;
     });
     try {

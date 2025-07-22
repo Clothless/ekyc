@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // Import for debugPrint
 
 import '../../ekyc.dart';
-import '../../ekyc_platform_interface.dart';
+
+enum NfcScanStage {
+  waiting,
+  initializing,
+  reading,
+  done,
+  error,
+}
 
 class ResultScreen extends StatefulWidget {
   final String docNumber;
@@ -22,7 +30,7 @@ class ResultScreen extends StatefulWidget {
 class _ResultScreenState extends State<ResultScreen> {
   bool _isLoading = true;
   String _status = '';
-  String _nfcStage = 'waiting'; // 'waiting', 'reading', 'done', 'error'
+  NfcScanStage _nfcStage = NfcScanStage.waiting;
   EkycResult? _result;
 
   @override
@@ -33,41 +41,60 @@ class _ResultScreenState extends State<ResultScreen> {
 
   Future<void> _readNfcTag() async {
     setState(() {
-      _nfcStage = 'waiting';
-      _status = 'Please hold your card against the phone’s NFC area…';
+      _nfcStage = NfcScanStage.waiting;
+      _status = 'Please hold your document close to the phone’s NFC area…';
       _isLoading = true;
       _result = null;
     });
-    await Future.delayed(const Duration(milliseconds: 500)); // Give user a moment to place card
+
+    // Give the user a moment to place the card before initiating the scan
+    await Future.delayed(const Duration(milliseconds: 500));
+
     setState(() {
-      _nfcStage = 'reading';
-      _status = 'Reading card, please keep holding…';
+      _nfcStage = NfcScanStage.initializing;
+      _status = 'NFC reader activated. Please keep your document steadily attached to the phone.';
     });
+
     try {
-      final result = await EkycPlatform.instance.readCard(
+      final result = await Ekyc.readCard(
         docNumber: widget.docNumber,
         dob: widget.dob,
         doe: widget.doe,
       );
+
       if (!mounted) return;
+
       setState(() {
         _result = EkycResult.fromMap(result);
-        _status = 'Success! eKYC process complete.';
+        _status = 'Success! Document data retrieved.';
         _isLoading = false;
-        _nfcStage = 'done';
+        _nfcStage = NfcScanStage.done;
       });
     } catch (e) {
       if (!mounted) return;
       String errorMsg = e.toString();
-      if (errorMsg.contains('NFC_TIMEOUT')) {
-        errorMsg = 'No NFC document detected. Please hold your document close to the phone and try again.';
-      } else {
-        errorMsg = 'NFC Read Error: $e';
+      String userFriendlyMessage;
+
+      if (errorMsg.contains('NFC_TIMEOUT') || errorMsg.contains('408')) {
+        userFriendlyMessage = 'No NFC document detected. Please hold your document steadily over the phone and try again.';
+      } else if (errorMsg.contains('Tag was lost') || errorMsg.contains('Transceive failed') || errorMsg.contains('I/O error')) {
+        userFriendlyMessage = 'Connection lost. Please ensure the document remains still during scanning and try again.';
+      } else if (errorMsg.contains('Authentication failed') || errorMsg.contains('BAC failed') || errorMsg.contains('Access denied')) {
+        userFriendlyMessage = 'Authentication failed. Please check your document number, date of birth, and expiry date. Ensure the document is valid and try again.';
+      } else if (errorMsg.contains('Not supported by NFC adapter')) {
+        userFriendlyMessage = 'NFC not supported for this document type or device. Please check device compatibility.';
+      } else if (errorMsg.contains('NFC is not enabled') || errorMsg.contains('NFC_NOT_ENABLED')) {
+        userFriendlyMessage = 'NFC is currently disabled on your device. Please enable NFC in your phone settings and try again.';
       }
+      else {
+        userFriendlyMessage = 'NFC Read Error: An unexpected error occurred. Please try again or contact support.';
+        debugPrint('Original NFC Error: $e');
+      }
+
       setState(() {
-        _status = errorMsg;
+        _status = userFriendlyMessage;
         _isLoading = false;
-        _nfcStage = 'error';
+        _nfcStage = NfcScanStage.error;
       });
     }
   }
@@ -87,7 +114,6 @@ class _ResultScreenState extends State<ResultScreen> {
               Column(
                 children: [
                   const SizedBox(height: 32),
-                  const Center(child: CircularProgressIndicator()),
                   const SizedBox(height: 24),
                   Center(
                     child: Text(
@@ -97,8 +123,8 @@ class _ResultScreenState extends State<ResultScreen> {
                     ),
                   ),
                 ],
-              ),
-            if (!_isLoading && _status.isNotEmpty)
+              )
+            else // Added else for better UI state management
               Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8.0),
@@ -109,7 +135,7 @@ class _ResultScreenState extends State<ResultScreen> {
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
-                      if (_nfcStage == 'error')
+                      if (_nfcStage == NfcScanStage.error)
                         Padding(
                           padding: const EdgeInsets.only(top: 16.0),
                           child: ElevatedButton.icon(

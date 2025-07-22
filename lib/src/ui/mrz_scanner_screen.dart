@@ -3,7 +3,7 @@ import 'package:camera/camera.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:mrz_parser/mrz_parser.dart' as MrzParser;
 import 'package:flutter/foundation.dart';
-import '../../ekyc_platform_interface.dart';
+import '../../ekyc.dart';
 
 enum DocumentType { idCard, passport }
 
@@ -121,7 +121,7 @@ class _MrzScannerScreenState extends State<MrzScannerScreen> {
 
   Future<void> _checkNfcAndScan() async {
     try {
-      final nfcStatus = await EkycPlatform.instance.checkNfc();
+      final nfcStatus = await Ekyc.checkNfc();
       if (nfcStatus is Map && nfcStatus['enabled'] == false) {
         await _showErrorDialog('NFC is not enabled. Please enable NFC in your device settings and try again.');
         return;

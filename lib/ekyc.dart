@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:plugin_platform_interface/plugin_platform_interface.dart';
-import 'ekyc_platform_interface.dart';
+import 'package:flutter/services.dart';
+import 'package:dmrtd/dmrtd.dart' as dmrtd;
 import 'src/ui/mrz_scanner_screen.dart';
 import 'src/ui/result_screen.dart';
 
@@ -71,6 +71,93 @@ class EkycResult {
 }
 
 class Ekyc {
+  static const MethodChannel _methodChannel = MethodChannel('ekyc');
+
+  static Future<Map<String, dynamic>> checkNfc() async {
+    try {
+      final result = await _methodChannel.invokeMethod('checkNfc');
+      if (result == null) {
+        throw Exception('No response from platform for checkNfc');
+      }
+      return Map<String, dynamic>.from(result);
+    } catch (e) {
+      throw Exception('Failed to check NFC: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>> readCard({
+    required String docNumber,
+    required String dob,
+    required String doe,
+  }) async {
+    final nfcProvider = dmrtd.NfcProvider();
+    try {
+      await nfcProvider.connect(
+        timeout: const Duration(seconds: 10),
+        iosAlertMessage: "Hold your document close to the phone",
+      );
+      final passport = dmrtd.Passport(nfcProvider);
+      final bacKey = dmrtd.DBAKey(docNumber, _parseDate(dob), _parseDate(doe));
+      await passport.startSession(bacKey);
+      final efCom = await passport.readEfCOM();
+      final dg1 = await passport.readEfDG1();
+      dmrtd.EfDG11? dg11;
+      if (efCom.dgTags.contains(dmrtd.EfDG11.TAG)) {
+        try {
+          dg11 = await passport.readEfDG11();
+        } catch (_) {}
+      }
+      dmrtd.EfDG12? dg12;
+      if (efCom.dgTags.contains(dmrtd.EfDG12.TAG)) {
+        try {
+          dg12 = await passport.readEfDG12();
+        } catch (_) {}
+      }
+      return {
+        'nin': dg11?.personalNumber,
+        'name': dg1.mrz.firstName,
+        'nameArabic': dg11?.otherNames?.join(' '),
+        'address': dg11?.permanentAddress?.join('\n'),
+        'placeOfBirth': dg11?.placeOfBirth?.join(', '),
+        'documentNumber': dg1.mrz.documentNumber,
+        'gender': dg1.mrz.gender,
+        'dateOfBirth': _formatDate(dg1.mrz.dateOfBirth),
+        'dateOfExpiry': _formatDate(dg1.mrz.dateOfExpiry),
+        'nationality': dg1.mrz.nationality,
+        'country': dg1.mrz.country,
+        'issuingAuthority': dg12?.issuingAuthority,
+        'dateOfIssue': dg12?.dateOfIssue == null ? null : _formatDate(dg12!.dateOfIssue!),
+      };
+    } catch (e) {
+      final errorMsg = e.toString();
+      if (errorMsg.contains('Polling tag timeout') || errorMsg.contains('408')) {
+        throw Exception('NFC_TIMEOUT: No NFC document detected. Please hold your document close to the phone and try again.');
+      }
+      throw Exception('eKYC NFC read failed: $e');
+    } finally {
+      try {
+        await nfcProvider.disconnect();
+      } catch (_) {}
+    }
+  }
+
+  static DateTime _parseDate(String dateStr) {
+    // Expects YYMMDD format
+    int year = int.parse(dateStr.substring(0, 2));
+    int month = int.parse(dateStr.substring(2, 4));
+    int day = int.parse(dateStr.substring(4, 6));
+    if (year > 50) {
+      year += 1900;
+    } else {
+      year += 2000;
+    }
+    return DateTime(year, month, day);
+  }
+
+  static String _formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+  }
+
   Future<EkycResult?> startKycFlow({required BuildContext context}) async {
     // 1. Show Document Type Dialog
     final docType = await showDialog<DocumentType>(
@@ -92,18 +179,16 @@ class Ekyc {
         ),
       ),
     );
-
     if (docType == null) return null; // User cancelled
-
     // 1.5. Check NFC status before proceeding
     try {
-      final nfcStatus = await EkycPlatform.instance.checkNfc();
-      if (nfcStatus is Map && nfcStatus['enabled'] == false) {
+      final nfcStatus = await Ekyc.checkNfc();
+      if (nfcStatus['enabled'] == false || nfcStatus['enabled'] == null) {
         await showDialog(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('NFC Not Enabled'),
-            content: const Text('NFC is not enabled. Please enable NFC in your device settings and try again.'),
+            content: Text(nfcStatus['error'] != null ? 'NFC is not enabled: ${nfcStatus['error']}' : 'NFC is not enabled. Please enable NFC in your device settings and try again.'),
             actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK'))],
           ),
         );
@@ -120,7 +205,6 @@ class Ekyc {
       );
       return null;
     }
-
     // 2. Push MRZ Scanner
     final mrzData = await Navigator.of(context).push<Map<String, String>>(
       MaterialPageRoute(
@@ -129,12 +213,10 @@ class Ekyc {
         ),
       ),
     );
-
     if (mrzData == null) return null; // User cancelled scan
-
     // 3. Trigger NFC read and return result
     try {
-      final result = await EkycPlatform.instance.readCard(
+      final result = await Ekyc.readCard(
         docNumber: mrzData['docNumber']!,
         dob: mrzData['dob']!,
         doe: mrzData['doe']!,
