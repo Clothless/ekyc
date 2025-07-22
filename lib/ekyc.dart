@@ -1,72 +1,77 @@
+import 'package:dmrtd/dmrtd.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dmrtd/dmrtd.dart' as dmrtd;
 import 'src/ui/mrz_scanner_screen.dart';
+import 'dart:convert'; // Add this import for base64 encoding
 
 class EkycResult {
-  final String? nin;
-  final String? name;
-  final String? nameArabic;
-  final String? address;
-  final String? placeOfBirth;
-  final String? documentNumber;
-  final String? gender;
-  final String? dateOfBirth;
-  final String? dateOfExpiry;
-  final String? nationality;
-  final String? country;
-  final String? issuingAuthority;
-  final String? dateOfIssue;
+  // Core MRZ data
+  final String documentNumber;
+  final String dateOfBirth; // Formatted string
+  final String dateOfExpiry; // Formatted string
+  final String firstName;
+  final String lastName;
+  final String gender; // This will be the name of the Gender enum value
+  final String nationality;
+  final String? fullMrz; // Raw MRZ string
+
+  // DG data as custom objects
+  final EfDG2? dg2Data;
+  final EfDG11? dg11Data;
+  final EfDG12? dg12Data;
+
+  // For backward compatibility or simpler direct image display
+  final String? base64Image;
 
   EkycResult({
-    this.nin,
-    this.name,
-    this.nameArabic,
-    this.address,
-    this.placeOfBirth,
-    this.documentNumber,
-    this.gender,
-    this.dateOfBirth,
-    this.dateOfExpiry,
-    this.nationality,
-    this.country,
-    this.issuingAuthority,
-    this.dateOfIssue,
+    required this.documentNumber,
+    required this.dateOfBirth,
+    required this.dateOfExpiry,
+    required this.firstName,
+    required this.lastName,
+    required this.gender,
+    required this.nationality,
+    this.fullMrz,
+    this.dg2Data,
+    this.base64Image,
+    this.dg11Data,
+    this.dg12Data,
   });
 
   factory EkycResult.fromMap(Map<String, dynamic> map) {
     return EkycResult(
-      nin: map['nin'],
-      name: map['name'],
-      nameArabic: map['nameArabic'],
-      address: map['address'],
-      placeOfBirth: map['placeOfBirth'],
       documentNumber: map['documentNumber'],
-      gender: map['gender'],
       dateOfBirth: map['dateOfBirth'],
       dateOfExpiry: map['dateOfExpiry'],
+      firstName: map['firstName'],
+      lastName: map['lastName'],
+      gender: map['gender'], // Expecting a string here now
       nationality: map['nationality'],
-      country: map['country'],
-      issuingAuthority: map['issuingAuthority'],
-      dateOfIssue: map['dateOfIssue'],
+      fullMrz: map['fullMrz'],
+      base64Image: map['base64Image'],
+      dg2Data: map['dg2Data'] != null ? map['dg2Data'] : null,
+      dg11Data: map['dg11Data'] != null ? map['dg11Data'] : null,
+      dg12Data: map['dg12Data'] != null ? map['dg12Data'] : null,
     );
   }
 
-  Map<String, dynamic> toMap() => {
-        'nin': nin,
-        'name': name,
-        'nameArabic': nameArabic,
-        'address': address,
-        'placeOfBirth': placeOfBirth,
-        'documentNumber': documentNumber,
-        'gender': gender,
-        'dateOfBirth': dateOfBirth,
-        'dateOfExpiry': dateOfExpiry,
-        'nationality': nationality,
-        'country': country,
-        'issuingAuthority': issuingAuthority,
-        'dateOfIssue': dateOfIssue,
-      };
+  Map<String, dynamic> toMap() {
+    return {
+      'documentNumber': documentNumber,
+      'dateOfBirth': dateOfBirth,
+      'dateOfExpiry': dateOfExpiry,
+      'firstName': firstName,
+      'lastName': lastName,
+      'gender': gender,
+      'nationality': nationality,
+      'fullMrz': fullMrz,
+      'base64Image': base64Image,
+      'dg2Data': dg2Data!,
+      'dg11Data': dg11Data!,
+      'dg12Data': dg12Data!,
+    };
+  }
 }
 
 class Ekyc {
@@ -93,59 +98,88 @@ class Ekyc {
     }
   }
 
-  static Future<Map<String, dynamic>> readCard({
-    required String docNumber,
-    required String dob,
-    required String doe,
+  static Future<EkycResult> readCard({ // Changed return type to EkycResult
+    required String documentNumber,
+    required String dateOfBirth,
+    required String dateOfExpiry,
   }) async {
-    final nfcProvider = dmrtd.NfcProvider();
+    final nfcProvider = dmrtd.NfcProvider(); // Initialize NfcProvider
+
     try {
-      await nfcProvider.connect(
+      await nfcProvider.connect( // Connect the NFC provider
         timeout: const Duration(seconds: 10),
         iosAlertMessage: "Hold your document close to the phone",
       );
-      final passport = dmrtd.Passport(nfcProvider);
-      final bacKey = dmrtd.DBAKey(docNumber, _parseDate(dob), _parseDate(doe));
-      await passport.startSession(bacKey);
+      final passport = dmrtd.Passport(nfcProvider); // Pass nfcProvider to Passport
+
+      final bacKey = dmrtd.DBAKey(
+        documentNumber, 
+        _parseDate(dateOfBirth), 
+        _parseDate(dateOfExpiry)
+      ); // Use DBAKey for session
+
+      await passport.startSession(bacKey); // Start session directly on passport
+
       final efCom = await passport.readEfCOM();
-      final dg1 = await passport.readEfDG1();
-      dmrtd.EfDG11? dg11;
+      final dmrtdDg1 = await passport.readEfDG1(); // Renamed to avoid conflict with custom DG11
+
+      dmrtd.MRZ mrz = dmrtdDg1.mrz; // Assign mrz from dmrtdDg1
+
+      EfDG2? customDg2Data; // Your custom DG2 object
+      EfDG11? customDg11Data; // Your custom DG11 object
+      EfDG12? customDg12Data; // Your custom DG12 object
+      String? base64Image; // For direct UI display (from DG2)
+
+      // Read DG2 (Facial Image)
+      if (efCom.dgTags.contains(dmrtd.EfDG2.TAG)) {
+        try {
+          final dmrtdDg2 = await passport.readEfDG2();
+          if (dmrtdDg2.imageData != null) {
+            base64Image = base64Encode(dmrtdDg2.imageData!); 
+            customDg2Data = dmrtdDg2 as EfDG2?; // Correct: Create your custom DG2 object from dmrtd's JSON data
+          }
+        } catch (e) {
+          print('Failed to read DG2: $e');
+        }
+      }
+
+      // Read DG11 (Additional Personal Details)
       if (efCom.dgTags.contains(dmrtd.EfDG11.TAG)) {
         try {
-          dg11 = await passport.readEfDG11();
-        } catch (_) {}
+          final dmrtdDg11 = await passport.readEfDG11();
+          customDg11Data = dmrtdDg11 as EfDG11?; // Correct: Create your custom DG11 object from dmrtd's map data
+        } catch (e) {
+          print('Failed to read DG11: $e');
+        }
       }
-      dmrtd.EfDG12? dg12;
+
+      // Read DG12 (Additional Document Details)
       if (efCom.dgTags.contains(dmrtd.EfDG12.TAG)) {
         try {
-          dg12 = await passport.readEfDG12();
-        } catch (_) {}
+          final dmrtdDg12 = await passport.readEfDG12();
+          customDg12Data = dmrtdDg12 as EfDG12?; // Correct: Create your custom DG12 object from dmrtd's JSON data
+        } catch (e) {
+          print('Failed to read DG12: $e');
+        }
       }
-      return {
-        'nin': dg11?.personalNumber,
-        'name': dg1.mrz.firstName,
-        'nameArabic': dg11?.otherNames?.join(' '),
-        'address': dg11?.permanentAddress?.join('\n'),
-        'placeOfBirth': dg11?.placeOfBirth?.join(', '),
-        'documentNumber': dg1.mrz.documentNumber,
-        'gender': dg1.mrz.gender,
-        'dateOfBirth': _formatDate(dg1.mrz.dateOfBirth),
-        'dateOfExpiry': _formatDate(dg1.mrz.dateOfExpiry),
-        'nationality': dg1.mrz.nationality,
-        'country': dg1.mrz.country,
-        'issuingAuthority': dg12?.issuingAuthority,
-        'dateOfIssue': dg12?.dateOfIssue == null ? null : _formatDate(dg12!.dateOfIssue!),
-      };
-    } catch (e) {
-      final errorMsg = e.toString();
-      if (errorMsg.contains('Polling tag timeout') || errorMsg.contains('408')) {
-        throw Exception('NFC_TIMEOUT: No NFC document detected. Please hold your document close to the phone and try again.');
-      }
-      throw Exception('eKYC NFC read failed: $e');
+
+      return EkycResult(
+        documentNumber: mrz.documentNumber,
+        dateOfBirth: _formatDate(mrz.dateOfBirth),
+        dateOfExpiry: _formatDate(mrz.dateOfExpiry),
+        firstName: mrz.firstName,
+        lastName: mrz.lastName,
+        gender: mrz.gender, // Correct: Access the name of the enum value for display
+        nationality: mrz.nationality,
+        fullMrz: mrz.toString(), // As per your latest change
+        dg2Data: customDg2Data,
+        base64Image: base64Image,
+        dg11Data: customDg11Data,
+        dg12Data: customDg12Data,
+      );
     } finally {
-      try {
-        await nfcProvider.disconnect();
-      } catch (_) {}
+      // Ensure disconnect is always called
+      await nfcProvider.disconnect();
     }
   }
 
@@ -239,11 +273,11 @@ class Ekyc {
     // 3. Trigger NFC read and return result
     try {
       final result = await Ekyc.readCard(
-        docNumber: mrzData['docNumber']!,
-        dob: mrzData['dob']!,
-        doe: mrzData['doe']!,
+        documentNumber: mrzData['docNumber']!,
+        dateOfBirth: mrzData['dob']!,
+        dateOfExpiry: mrzData['doe']!,
       );
-      return EkycResult.fromMap(result);
+      return result; // Return the EkycResult directly
     } catch (e) {
       rethrow;
     }

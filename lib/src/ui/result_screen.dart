@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../ekyc.dart';
+import 'dart:convert'; // Import for Base64 decoding
 
 enum NfcScanStage {
   waiting,
@@ -11,15 +12,11 @@ enum NfcScanStage {
 }
 
 class ResultScreen extends StatefulWidget {
-  final String docNumber;
-  final String dob;
-  final String doe;
+  final EkycResult result;
 
   const ResultScreen({
     super.key,
-    required this.docNumber,
-    required this.dob,
-    required this.doe,
+    required this.result,
   });
 
   @override
@@ -27,77 +24,6 @@ class ResultScreen extends StatefulWidget {
 }
 
 class _ResultScreenState extends State<ResultScreen> {
-  bool _isLoading = true;
-  String _status = '';
-  NfcScanStage _nfcStage = NfcScanStage.waiting;
-  EkycResult? _result;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _readNfcTag());
-  }
-
-  Future<void> _readNfcTag() async {
-    setState(() {
-      _nfcStage = NfcScanStage.waiting;
-      _status = 'Please hold your document close to the phone’s NFC area…';
-      _isLoading = true;
-      _result = null;
-    });
-
-    // Give the user a moment to place the card before initiating the scan
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    setState(() {
-      _nfcStage = NfcScanStage.initializing;
-      _status = 'NFC reader activated. Please keep your document steadily attached to the phone.';
-    });
-
-    try {
-      final result = await Ekyc.readCard(
-        docNumber: widget.docNumber,
-        dob: widget.dob,
-        doe: widget.doe,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _result = EkycResult.fromMap(result);
-        _status = 'Success! Document data retrieved.';
-        _isLoading = false;
-        _nfcStage = NfcScanStage.done;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      String errorMsg = e.toString();
-      String userFriendlyMessage;
-
-      if (errorMsg.contains('NFC_TIMEOUT') || errorMsg.contains('408')) {
-        userFriendlyMessage = 'No NFC document detected. Please hold your document steadily over the phone and try again.';
-      } else if (errorMsg.contains('Tag was lost') || errorMsg.contains('Transceive failed') || errorMsg.contains('I/O error')) {
-        userFriendlyMessage = 'Connection lost. Please ensure the document remains still during scanning and try again.';
-      } else if (errorMsg.contains('Authentication failed') || errorMsg.contains('BAC failed') || errorMsg.contains('Access denied')) {
-        userFriendlyMessage = 'Authentication failed. Please check your document number, date of birth, and expiry date. Ensure the document is valid and try again.';
-      } else if (errorMsg.contains('Not supported by NFC adapter')) {
-        userFriendlyMessage = 'NFC not supported for this document type or device. Please check device compatibility.';
-      } else if (errorMsg.contains('NFC is not enabled') || errorMsg.contains('NFC_NOT_ENABLED')) {
-        userFriendlyMessage = 'NFC is currently disabled on your device. Please enable NFC in your phone settings and try again.';
-      }
-      else {
-        userFriendlyMessage = 'NFC Read Error: An unexpected error occurred. Please try again or contact support.';
-        debugPrint('Original NFC Error: $e');
-      }
-
-      setState(() {
-        _status = userFriendlyMessage;
-        _isLoading = false;
-        _nfcStage = NfcScanStage.error;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -106,120 +32,138 @@ class _ResultScreenState extends State<ResultScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (_isLoading)
-              Column(
-                children: [
-                  const SizedBox(height: 32),
-                  const SizedBox(height: 24),
-                  Center(
-                    child: Text(
-                      _status,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ),
-                ],
-              )
-            else // Added else for better UI state management
-              Center(
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // MRZ Data Section
+              Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                margin: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  padding: const EdgeInsets.all(16.0),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        _status,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      if (_nfcStage == NfcScanStage.error)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 16.0),
-                          child: ElevatedButton.icon(
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Retry NFC Scan'),
-                            onPressed: _readNfcTag,
-                          ),
-                        ),
+                      Text('MRZ Information', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      _buildInfoRow('Document Number', widget.result.documentNumber),
+                      _buildInfoRow('Date of Birth', widget.result.dateOfBirth),
+                      _buildInfoRow('Date of Expiry', widget.result.dateOfExpiry),
+                      _buildInfoRow('First Name', widget.result.firstName),
+                      _buildInfoRow('Last Name', widget.result.lastName),
+                      _buildInfoRow('Gender', widget.result.gender),
+                      _buildInfoRow('Nationality', widget.result.nationality),
+                      _buildInfoRow('Full MRZ', widget.result.fullMrz ?? 'N/A'),
                     ],
                   ),
                 ),
               ),
-            if (_result != null) Expanded(child: _buildResultDisplay()),
-          ],
+
+              // DG11 Data Section (Additional Personal Details)
+              if (widget.result.dg11Data != null)
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  margin: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Personal Details (DG11)', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 12),
+                        _buildInfoRow('Full Name', widget.result.dg11Data!.nameOfHolder),
+                        _buildInfoRow('Other Names', widget.result.dg11Data!.otherNames.join(' ')),
+                        _buildInfoRow('Personal Number', widget.result.dg11Data!.personalNumber),
+                        _buildInfoRow('Permanent Address', widget.result.dg11Data!.permanentAddress.join('\n')),
+                        _buildInfoRow('Place of Birth', widget.result.dg11Data!.placeOfBirth.join(', ')),
+                        _buildInfoRow('Profession', widget.result.dg11Data!.profession),
+                        _buildInfoRow('Telephone', widget.result.dg11Data!.telephone),
+                        _buildInfoRow('Title', widget.result.dg11Data!.title),
+                        _buildInfoRow('Full Date of Birth', widget.result.dg11Data!.fullDateOfBirth != null ? _formatDate(widget.result.dg11Data!.fullDateOfBirth!) : 'N/A'),
+                        // Add other DG11 fields as needed
+                      ],
+                    ),
+                  ),
+                ),
+
+              // DG12 Data Section (Additional Document Details)
+              if (widget.result.dg12Data != null)
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  margin: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Document Details (DG12)', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 12),
+                        _buildInfoRow('Issuing Authority', widget.result.dg12Data!.issuingAuthority),
+                        _buildInfoRow('Date of Issue', widget.result.dg12Data!.dateOfIssue != null ? _formatDate(widget.result.dg12Data!.dateOfIssue!) : 'N/A'),
+                        // Add other DG12 fields as needed
+                      ],
+                    ),
+                  ),
+                ),
+
+              // Facial Image Section (DG2)
+              if (widget.result.base64Image != null)
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  margin: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Facial Image', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 12),
+                        Center(
+                          child: Image.memory(
+                            base64Decode(widget.result.base64Image!),
+                            fit: BoxFit.contain,
+                            height: 200, // Adjust height as needed
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Done'),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildResultDisplay() {
-    if (_result == null) {
-      return const Center(child: Text('No result available.'));
-    }
-    return SingleChildScrollView(
-      child: Column(
+  Widget _buildInfoRow(String label, String? value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildInfoCard(
-            title: 'Personal Details',
-            data: {
-              'First Name': _result!.name ?? '-',
-              'Name in Arabic': _result!.nameArabic ?? '-',
-              'National Identity Number': _result!.nin ?? '-',
-              'Document Number': _result!.documentNumber ?? '-',
-              'Gender': _result!.gender ?? '-',
-              'Date of Birth': _result!.dateOfBirth ?? '-',
-              'Date of Expiry': _result!.dateOfExpiry ?? '-',
-              'Nationality': _result!.nationality ?? '-',
-              'Country': _result!.country ?? '-',
-            },
-          ),
-          const SizedBox(height: 16),
-          _buildInfoCard(
-            title: 'Address & Birth',
-            data: {
-              'Address': _result!.address ?? '-',
-              'Place of Birth': _result!.placeOfBirth ?? '-',
-            },
-          ),
-          const SizedBox(height: 16),
-          _buildInfoCard(
-            title: 'Document Details',
-            data: {
-              'Issuing Authority': _result!.issuingAuthority ?? '-',
-              'Date of Issue': _result!.dateOfIssue ?? '-',
-            },
-          ),
+          Expanded(flex: 2, child: Text('$label:', style: const TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(flex: 3, child: Text(value ?? '-')),
         ],
       ),
     );
   }
 
-  Widget _buildInfoCard({required String title, required Map<String, String?> data}) {
-    final filtered = data.entries.where((entry) => entry.value != null && entry.value!.isNotEmpty && entry.value != '-').toList();
-    if (filtered.isEmpty) return const SizedBox.shrink();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 10),
-            ...filtered.map((entry) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4.0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 2, child: Text('${entry.key}:', style: const TextStyle(fontWeight: FontWeight.bold))),
-                  Expanded(flex: 3, child: Text(entry.value!)),
-                ],
-              ),
-            )),
-          ],
-        ),
-      ),
-    );
+  // Helper for date formatting, consistent with Ekyc class
+  String _formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 } 
