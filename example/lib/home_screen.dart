@@ -20,9 +20,9 @@ class _HomeScreenState extends State<HomeScreen> {
       _result = null;
     });
     try {
-      print('eKYC: Starting flow');
+      debugPrint('eKYC: Starting flow');
       final result = await Ekyc().startKycFlow(context: context);
-      print('eKYC: Flow returned: $result');
+      debugPrint('eKYC: Flow returned: $result');
       if (!mounted) return;
       if (result == null) {
         setState(() {
@@ -37,7 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     } catch (e) {
-      print('eKYC: Error: $e');
+      debugPrint('eKYC: Error: $e');
       if (!mounted) return;
       setState(() {
         _status = 'Error: $e';

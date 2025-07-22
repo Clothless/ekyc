@@ -33,6 +33,9 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler {
                 val enabled = nfcAdapter?.isEnabled == true
                 result.success(mapOf("supported" to supported, "enabled" to enabled))
             }
+            "getPlatformVersion" -> {
+                result.success("Android ${android.os.Build.VERSION.RELEASE}")
+            }
             else -> result.notImplemented()
         }
     }

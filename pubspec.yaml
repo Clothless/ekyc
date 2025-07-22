@@ -1,7 +1,10 @@
 name: ekyc
-description: "A new Flutter plugin project."
-version: 0.0.1
-homepage:
+description: "A Flutter plugin for eKYC (electronic Know Your Customer) processes, enabling secure and efficient reading of ID card and passport data via NFC and MRZ scanning."
+version: 1.0.0
+homepage: https://github.com/your-username/ekyc
+repository: https://github.com/your-username/ekyc
+issue_tracker: https://github.com/your-username/ekyc/issues
+documentation: https://github.com/your-username/ekyc#readme
 
 environment:
   sdk: '>=3.5.3 <4.0.0'

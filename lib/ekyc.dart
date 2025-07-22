@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dmrtd/dmrtd.dart' as dmrtd;
 import 'src/ui/mrz_scanner_screen.dart';
-import 'src/ui/result_screen.dart';
 
 class EkycResult {
   final String? nin;
@@ -72,6 +71,15 @@ class EkycResult {
 
 class Ekyc {
   static const MethodChannel _methodChannel = MethodChannel('ekyc');
+
+  static Future<String?> getPlatformVersion() async {
+    try {
+      final version = await _methodChannel.invokeMethod<String>('getPlatformVersion');
+      return version;
+    } catch (e) {
+      throw Exception('Failed to get platform version: $e');
+    }
+  }
 
   static Future<Map<String, dynamic>> checkNfc() async {
     try {
@@ -169,11 +177,17 @@ class Ekyc {
           children: [
             ListTile(
               title: const Text('ID Card / Residence Permit'),
-              onTap: () => Navigator.of(context).pop(DocumentType.idCard),
+              onTap: () {
+                if (!context.mounted) return;
+                Navigator.of(context).pop(DocumentType.idCard);
+              },
             ),
             ListTile(
               title: const Text('Passport'),
-              onTap: () => Navigator.of(context).pop(DocumentType.passport),
+              onTap: () {
+                if (!context.mounted) return;
+                Navigator.of(context).pop(DocumentType.passport);
+              },
             ),
           ],
         ),
@@ -184,23 +198,31 @@ class Ekyc {
     try {
       final nfcStatus = await Ekyc.checkNfc();
       if (nfcStatus['enabled'] == false || nfcStatus['enabled'] == null) {
+        if (!context.mounted) return null;
         await showDialog(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('NFC Not Enabled'),
             content: Text(nfcStatus['error'] != null ? 'NFC is not enabled: ${nfcStatus['error']}' : 'NFC is not enabled. Please enable NFC in your device settings and try again.'),
-            actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK'))],
+            actions: [TextButton(onPressed: () {
+              if (!context.mounted) return;
+              Navigator.of(context).pop();
+            }, child: const Text('OK'))],
           ),
         );
         return null;
       }
     } catch (e) {
+      if (!context.mounted) return null;
       await showDialog(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('NFC Check Failed'),
           content: Text('Failed to check NFC status: $e'),
-          actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK'))],
+          actions: [TextButton(onPressed: () {
+            if (!context.mounted) return;
+            Navigator.of(context).pop();
+          }, child: const Text('OK'))],
         ),
       );
       return null;

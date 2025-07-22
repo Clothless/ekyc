@@ -23,7 +23,7 @@ class _MrzScannerScreenState extends State<MrzScannerScreen> {
   CameraController? _controller;
   late Future<void> _initializeControllerFuture;
   bool _isProcessing = false;
-  String? _error;
+  String? _error; // Re-introduced _error field
   String? _rawOcr;
   bool _dialogOpen = false;
 
@@ -122,7 +122,7 @@ class _MrzScannerScreenState extends State<MrzScannerScreen> {
   Future<void> _checkNfcAndScan() async {
     try {
       final nfcStatus = await Ekyc.checkNfc();
-      if (nfcStatus is Map && nfcStatus['enabled'] == false) {
+      if (nfcStatus is Map && (nfcStatus['enabled'] == false || nfcStatus['enabled'] == null)) {
         await _showErrorDialog('NFC is not enabled. Please enable NFC in your device settings and try again.');
         return;
       }
@@ -261,10 +261,10 @@ class _MrzScannerScreenState extends State<MrzScannerScreen> {
                   bottom: 5,
                   left: 0,
                   right: 0,
-                  child: Text(
+                  child: const Text(
                     'and tap screen to scan',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: Colors.white,
                         fontSize: 12,
                         backgroundColor: Colors.black54),

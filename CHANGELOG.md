@@ -1,3 +1,11 @@
+## 0.0.2
+
+*   **Refactor:** Streamlined plugin architecture to rely primarily on `dmrtd` for core NFC and passport/ID reading, reducing custom native code.
+*   **Fix:** Resolved "NFC not recognized" and "double scan sound" issues by carefully managing AndroidManifest.xml intent filters and `singleTask` launch mode.
+*   **Enhancement:** Improved User Experience (UX) in `ResultScreen` with more granular, actionable status messages during NFC scanning.
+*   **Enhancement:** Removed `CircularProgressIndicator` during NFC scan, replaced by descriptive text.
+*   **Build:** Re-introduced minimal native plugin entry points (`EkycPlugin.kt`, `EkycPlugin.swift`) to maintain Flutter plugin compatibility for future extensions.
+
 ## 0.0.1
 
 * Initial release with NFC functionality
