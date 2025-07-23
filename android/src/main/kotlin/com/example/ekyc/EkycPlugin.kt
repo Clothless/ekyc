@@ -6,6 +6,8 @@ import android.content.Intent
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.IsoDep
+import android.util.Base64
+import android.util.Log
 import androidx.annotation.Keep
 import androidx.annotation.NonNull
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -16,18 +18,15 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import kotlinx.coroutines.*
+import net.sf.scuba.smartcards.CardService
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.jmrtd.BACKey
 import org.jmrtd.PassportService
-import org.jmrtd.lds.icao.*
 import org.jmrtd.lds.*
+import org.jmrtd.lds.icao.*
 import java.io.ByteArrayInputStream
 import java.security.Security
-import net.sf.scuba.smartcards.CardService
-import android.util.Log
-import android.util.Base64
 import java.security.cert.X509Certificate
-
 
 
 @Keep
@@ -177,6 +176,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             val dg14Info = mutableMapOf<String, Any?>()
             val dg15Info = mutableMapOf<String, Any?>()
             val availableDGs = mutableListOf<Int>()
+            var images: Any? = null
 
 
             val allDGs = mutableMapOf<String, Any?>()
@@ -202,6 +202,37 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                     mrzInfo = dg1File.mrzInfo
                     allDGs["DG1"] = dg1Bytes
                 }
+
+                // === DG2: Face image ===
+                passportService?.getInputStream(PassportService.EF_DG2)?.let { dg2Stream ->
+                    val dg2Bytes = dg2Stream.readBytes()
+                    allDGs["DG2"] = dg2Bytes
+
+                    val dg2File = DG2File(ByteArrayInputStream(dg2Bytes))
+                    dg2File.faceInfos.firstOrNull()?.faceImageInfos?.firstOrNull()?.let {
+                        photoBytes = it.imageInputStream.readBytes()
+                    }
+                    base64Photo = photoBytes?.let {
+                        Base64.encodeToString(it, Base64.NO_WRAP)
+                    }
+                }
+
+                //Getting Signature
+                passportService?.getInputStream(PassportService.EF_DG7)?.let { dg7Stream ->
+                    val dg7Bytes = dg7Stream.readBytes()
+                    val dg7 = DG7File(ByteArrayInputStream(dg7Bytes))
+                    val sigInfos = dg7.getImages()
+                    val sigImagesData = sigInfos.mapNotNull { info ->
+                        info.imageInputStream.readBytes()
+                    }
+                    val base64Signatures = sigImagesData.map { bytes ->
+                        Base64.encodeToString(bytes, Base64.NO_WRAP)
+                    }
+                    images = base64Signatures
+                }
+
+
+
 
                 // === DG3: Fingerprints ===
                 passportService?.getInputStream(PassportService.EF_DG3)?.let { dg3Stream ->
@@ -269,20 +300,6 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                     }
                 }
 
-                // === DG2: Face image ===
-                passportService?.getInputStream(PassportService.EF_DG2)?.let { dg2Stream ->
-                    val dg2Bytes = dg2Stream.readBytes()
-                    allDGs["DG2"] = dg2Bytes
-
-                    val dg2File = DG2File(ByteArrayInputStream(dg2Bytes))
-                    dg2File.faceInfos.firstOrNull()?.faceImageInfos?.firstOrNull()?.let {
-                        photoBytes = it.imageInputStream.readBytes()
-                    }
-                    base64Photo = photoBytes?.let {
-                        Base64.encodeToString(it, Base64.NO_WRAP)
-                    }
-                }
-
 
 
             } catch (e: Exception) {
@@ -314,6 +331,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
                 "dg14Info" to dg14Info,
                 "dg15Info" to dg15Info,
+                "images" to images,
 
                 //SOD Info
                 "signatureAlgorithm" to signatureAlgorithm,
