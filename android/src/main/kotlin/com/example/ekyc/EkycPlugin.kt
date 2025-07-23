@@ -178,6 +178,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             val availableDGs = mutableListOf<Int>()
             var images: Any? = null
             var publicKey: Any? = null
+            var securityInfos: Any? = null
 
 
             val allDGs = mutableMapOf<String, Any?>()
@@ -230,6 +231,14 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                         Base64.encodeToString(bytes, Base64.NO_WRAP)
                     }
                     images = base64Signatures
+                }
+
+//                 Get security info from DG14
+                passportService?.getInputStream(PassportService.EF_DG14)?.let { dg14Stream ->
+                    val dg14Bytes = dg14Stream.readBytes()
+                    val dg14 = DG14File(ByteArrayInputStream(dg14Bytes))
+                    val info = dg14.getSecurityInfos()
+                    securityInfos = info
                 }
 
                 // Get public Key from DG15
@@ -333,6 +342,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 "fingerprints" to fingerprintBytes?.toList(),
                 "iris" to irisBytes?.toList(),
                 "publicKey" to publicKey,
+                "securityInfos" to securityInfos,
 /*
 
 * */

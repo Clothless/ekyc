@@ -37,7 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _timeout = false;
     });
 
-    _timeoutTimer = Timer(const Duration(seconds: 15), () {
+    _timeoutTimer = Timer(const Duration(seconds: 30), () {
       setState(() {
         _scanning = false;
         _timeout = true;
@@ -134,16 +134,24 @@ class _HomeScreenState extends State<HomeScreen> {
         _buildResultCard("Document Type", _result!["documentType"]),
         _buildResultCard("Date of Expiry", _result!["dateOfExpiry"]),
         _buildResultCard("Verified", _result!["isVerified"] ? "Yes" : "No"),
-        const SizedBox(height: 20,),
-        Divider(thickness: 1, color: Colors.grey[300]),
-        Text("Security", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        _buildResultCard("Public Key algorithm", _result!["publicKey"]['algorithm']),
-        _buildResultCard("Public Key Format", _result!["publicKey"]['format']),
-        _buildResultCard("Public key encoded", _result!["publicKey"]['encoded']),
-        const SizedBox(height: 20,),
-        Divider(thickness: 1, color: Colors.grey[300]),
-        Text("Signature", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        Image.memory(Uint8List.fromList(base64Decode(_result!["images"][0])), fit: BoxFit.cover,),
+        _result!['publicKey'] != null ? Column(
+          children: [
+            const SizedBox(height: 20,),
+            Divider(thickness: 1, color: Colors.grey[300]),
+            Text("Security", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            _buildResultCard("Public Key algorithm", _result!["publicKey"]['algorithm']),
+            _buildResultCard("Public Key Format", _result!["publicKey"]['format']),
+            _buildResultCard("Public key encoded", _result!["publicKey"]['encoded']),
+          ],
+        ) : Container(),
+        (_result!['images'] != null && _result!['images'].isNotEmpty) ? Column(
+          children: [
+            const SizedBox(height: 20,),
+            Divider(thickness: 1, color: Colors.grey[300]),
+            Text("Signature", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Image.memory(Uint8List.fromList(base64Decode(_result!["images"][0])), fit: BoxFit.cover,),
+          ],
+        ) : Container(),
       ],
     );
   }
