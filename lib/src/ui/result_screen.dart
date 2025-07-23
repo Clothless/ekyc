@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../card_portal.dart';
 import '../../ekyc.dart';
 import 'dart:convert'; // Import for Base64 decoding
 
@@ -12,7 +13,7 @@ enum NfcScanStage {
 }
 
 class ResultScreen extends StatefulWidget {
-  final EkycResult result;
+  final CardDataModel result;
 
   const ResultScreen({
     super.key,
@@ -48,21 +49,31 @@ class _ResultScreenState extends State<ResultScreen> {
                     children: [
                       Text('MRZ Information', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 12),
-                      _buildInfoRow('Document Number', widget.result.documentNumber),
-                      _buildInfoRow('Date of Birth', widget.result.dateOfBirth),
-                      _buildInfoRow('Date of Expiry', widget.result.dateOfExpiry),
-                      _buildInfoRow('First Name', widget.result.firstName),
-                      _buildInfoRow('Last Name', widget.result.lastName),
-                      _buildInfoRow('Gender', widget.result.gender),
-                      _buildInfoRow('Nationality', widget.result.nationality),
-                      _buildInfoRow('Full MRZ', widget.result.fullMrz ?? 'N/A'),
+                      _buildInfoRow('MRZ version', widget.result.efdg1.mrz.version.name),
+                      _buildInfoRow('FID', widget.result.efdg1.fid.toString()),
+                      _buildInfoRow('SFI', widget.result.efdg1.sfi.toString()),
+                      _buildInfoRow('Document Number', widget.result.efdg1.mrz.documentNumber),
+                      _buildInfoRow('Document Code', widget.result.efdg1.mrz.documentCode),
+                      _buildInfoRow('Optional Data 1', widget.result.efdg1.mrz.optionalData),
+                      _buildInfoRow('Optional Data 2', widget.result.efdg1.mrz.optionalData2),
+                      _buildInfoRow('Country', widget.result.efdg1.mrz.country),
+                      _buildInfoRow('Nationality', widget.result.efdg1.mrz.nationality),
+
+                      _buildInfoRow('Version', widget.result.efcom.version.toString()),
+                      _buildInfoRow('UniCode Version', widget.result.efcom.unicodeVersion.toString()),
+                      // _buildInfoRow('Date of Expiry', widget.result.dateOfExpiry),
+                      // _buildInfoRow('First Name', widget.result.firstName),
+                      // _buildInfoRow('Last Name', widget.result.lastName),
+                      // _buildInfoRow('Gender', widget.result.gender),
+                      // _buildInfoRow('Nationality', widget.result.nationality),
+                      // _buildInfoRow('Full MRZ', widget.result.fullMrz ?? 'N/A'),
                     ],
                   ),
                 ),
               ),
 
               // DG11 Data Section (Additional Personal Details)
-              if (widget.result.dg11Data != null)
+              if (widget.result.efdg11 != null)
                 Card(
                   elevation: 4,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -74,15 +85,15 @@ class _ResultScreenState extends State<ResultScreen> {
                       children: [
                         Text('Personal Details (DG11)', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 12),
-                        _buildInfoRow('Full Name', widget.result.dg11Data!.nameOfHolder),
-                        _buildInfoRow('Other Names', widget.result.dg11Data!.otherNames.join(' ')),
-                        _buildInfoRow('Personal Number', widget.result.dg11Data!.personalNumber),
-                        _buildInfoRow('Permanent Address', widget.result.dg11Data!.permanentAddress.join('\n')),
-                        _buildInfoRow('Place of Birth', widget.result.dg11Data!.placeOfBirth.join(', ')),
-                        _buildInfoRow('Profession', widget.result.dg11Data!.profession),
-                        _buildInfoRow('Telephone', widget.result.dg11Data!.telephone),
-                        _buildInfoRow('Title', widget.result.dg11Data!.title),
-                        _buildInfoRow('Full Date of Birth', widget.result.dg11Data!.fullDateOfBirth != null ? _formatDate(widget.result.dg11Data!.fullDateOfBirth!) : 'N/A'),
+                        _buildInfoRow('Full Name', widget.result.efdg11!.nameOfHolder),
+                        _buildInfoRow('Other Names', widget.result.efdg11!.otherNames.join(' ')),
+                        _buildInfoRow('Personal Number', widget.result.efdg11!.personalNumber),
+                        _buildInfoRow('Permanent Address', widget.result.efdg11!.permanentAddress.join('\n')),
+                        _buildInfoRow('Place of Birth', widget.result.efdg11!.placeOfBirth.join(', ')),
+                        _buildInfoRow('Profession', widget.result.efdg11!.profession),
+                        _buildInfoRow('Telephone', widget.result.efdg11!.telephone),
+                        _buildInfoRow('Title', widget.result.efdg11!.title),
+                        _buildInfoRow('Full Date of Birth', widget.result.efdg11!.fullDateOfBirth != null ? _formatDate(widget.result.efdg11!.fullDateOfBirth!) : 'N/A'),
                         // Add other DG11 fields as needed
                       ],
                     ),
@@ -90,7 +101,7 @@ class _ResultScreenState extends State<ResultScreen> {
                 ),
 
               // DG12 Data Section (Additional Document Details)
-              if (widget.result.dg12Data != null)
+              if (widget.result.efdg12 != null)
                 Card(
                   elevation: 4,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -102,8 +113,8 @@ class _ResultScreenState extends State<ResultScreen> {
                       children: [
                         Text('Document Details (DG12)', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 12),
-                        _buildInfoRow('Issuing Authority', widget.result.dg12Data!.issuingAuthority),
-                        _buildInfoRow('Date of Issue', widget.result.dg12Data!.dateOfIssue != null ? _formatDate(widget.result.dg12Data!.dateOfIssue!) : 'N/A'),
+                        _buildInfoRow('Issuing Authority', widget.result.efdg12!.issuingAuthority),
+                        _buildInfoRow('Date of Issue', widget.result.efdg12!.dateOfIssue != null ? _formatDate(widget.result.efdg12!.dateOfIssue!) : 'N/A'),
                         // Add other DG12 fields as needed
                       ],
                     ),
@@ -111,7 +122,7 @@ class _ResultScreenState extends State<ResultScreen> {
                 ),
 
               // Facial Image Section (DG2)
-              if (widget.result.base64Image != null)
+              if (widget.result.efdg2.imageData != null)
                 Card(
                   elevation: 4,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -125,7 +136,7 @@ class _ResultScreenState extends State<ResultScreen> {
                         const SizedBox(height: 12),
                         Center(
                           child: Image.memory(
-                            base64Decode(widget.result.base64Image!),
+                            widget.result.efdg2.imageData!,
                             fit: BoxFit.contain,
                             height: 200, // Adjust height as needed
                           ),

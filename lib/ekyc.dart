@@ -1,4 +1,5 @@
 import 'package:dmrtd/dmrtd.dart';
+import 'package:ekyc/card_portal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dmrtd/dmrtd.dart' as dmrtd;
@@ -46,7 +47,8 @@ class EkycResult {
       dateOfExpiry: map['dateOfExpiry'],
       firstName: map['firstName'],
       lastName: map['lastName'],
-      gender: map['gender'], // Expecting a string here now
+      gender: map['gender'],
+      // Expecting a string here now
       nationality: map['nationality'],
       fullMrz: map['fullMrz'],
       base64Image: map['base64Image'],
@@ -77,53 +79,138 @@ class EkycResult {
 class Ekyc {
   static const MethodChannel _methodChannel = MethodChannel('ekyc');
 
+  /// Listen for native passport scan result (from handleNfcIntent).
+  static void setOnPassportReadListener(Function(Map<String, dynamic>) onData) {
+    _methodChannel.setMethodCallHandler((call) async {
+      if (call.method == 'onPassportRead') {
+        final data = Map<String, dynamic>.from(call.arguments);
+        onData(data);
+      }
+    });
+  }
+
+  /// Check if NFC is supported and enabled
+  static Future<Map<String, dynamic>> checkNfc() async {
+    final result = await _methodChannel.invokeMethod('checkNfc');
+    return Map<String, dynamic>.from(result ?? {});
+  }
+
+  /// Reinitialize NFC (optional)
+  static Future<bool> initialize() async {
+    return await _methodChannel.invokeMethod('initialize');
+  }
+
+  /// Start listening for NFC tag and provide BAC key info
+  static Future<void> readPassport({
+    required String documentNumber,
+    required String dateOfBirth,
+    required String dateOfExpiry,
+  }) async {
+    await _methodChannel.invokeMethod('readPassport', {
+      'documentNumber': documentNumber,
+      'dateOfBirth': dateOfBirth,
+      'dateOfExpiry': dateOfExpiry,
+    });
+  }
+
   static Future<String?> getPlatformVersion() async {
     try {
-      final version = await _methodChannel.invokeMethod<String>('getPlatformVersion');
+      final version =
+          await _methodChannel.invokeMethod<String>('getPlatformVersion');
       return version;
     } catch (e) {
       throw Exception('Failed to get platform version: $e');
     }
   }
 
-  static Future<Map<String, dynamic>> checkNfc() async {
+  static Future<dynamic> init() async {
     try {
-      final result = await _methodChannel.invokeMethod('checkNfc');
+      final result = await _methodChannel.invokeMethod('initialize');
       if (result == null) {
-        throw Exception('No response from platform for checkNfc');
+        throw Exception('No response from platform for initialize');
       }
       return Map<String, dynamic>.from(result);
     } catch (e) {
-      throw Exception('Failed to check NFC: $e');
+      throw Exception('Failed to initialize: $e');
     }
   }
 
-  static Future<EkycResult> readCard({ // Changed return type to EkycResult
+  Future<CardDataModel> gettingCardData({required Passport passport}) async {
+    try {
+      // final cardAccess = await passport.readEfCardAccess();
+      // final cardSecurity = await passport.readEfCardSecurity();
+      final efcom = await passport.readEfCOM();
+      final efdg1 = await passport.readEfDG1();
+      final efdg2 = await passport.readEfDG2();
+      // final efdg3 = await passport.readEfDG3();
+      // final efdg4 = await passport.readEfDG4();
+      // final efdg5 = await passport.readEfDG5();
+      // final efdg6 = await passport.readEfDG6();
+      // final efdg7 = await passport.readEfDG7();
+      // final efdg8 = await passport.readEfDG8();
+      // final efdg9 = await passport.readEfDG9();
+      // final efsod = await passport.readEfSOD();
+      // final efdg10 = await passport.readEfDG10();
+      // final efdg11 = await passport.readEfDG11();
+      // final efdg12 = await passport.readEfDG12();
+      // final efdg13 = await passport.readEfDG13();
+      // final efdg14 = await passport.readEfDG14();
+      // final efdg15 = await passport.readEfDG15();
+      // final efdg16 = await passport.readEfDG16();
+      final temp = {
+        'cardAccess': null,
+        'cardSecurity': null,
+        'efcom': efcom,
+        'efdg1': efdg1,
+        'efdg2': efdg2,
+        'efdg3': null,
+        'efdg4': null,
+        'efdg5': null,
+        'efdg6': null,
+        'efdg7': null,
+        'efdg8': null,
+        'efdg9': null,
+        'efsod': null,
+        'efdg10': null,
+        'efdg11': null,
+        'efdg12': null,
+        'efdg13': null,
+        'efdg14': null,
+        'efdg15': null,
+        'efdg16': null,
+      };
+
+      return CardDataModel.fromJson(temp);
+    } catch (e, stackTrace) {
+      // Log the error and stack trace for debugging
+      print('Error getting card data: $e');
+      print('Stack trace: $stackTrace');
+      throw Exception('Failed to get card data: $e');
+    }
+  }
+
+  Future<EkycResult> readCard({
     required String documentNumber,
     required String dateOfBirth,
     required String dateOfExpiry,
   }) async {
-    final nfcProvider = dmrtd.NfcProvider(); // Initialize NfcProvider
+    final nfcProvider = dmrtd.NfcProvider();
 
     try {
-      await nfcProvider.connect( // Connect the NFC provider
+      await nfcProvider.connect(
         timeout: const Duration(seconds: 10),
         iosAlertMessage: "Hold your document close to the phone",
       );
-      final passport = dmrtd.Passport(nfcProvider); // Pass nfcProvider to Passport
+      final passport = dmrtd.Passport(nfcProvider);
 
-      final bacKey = dmrtd.DBAKey(
-        documentNumber, 
-        _parseDate(dateOfBirth), 
-        _parseDate(dateOfExpiry)
-      ); // Use DBAKey for session
+      final bacKey = dmrtd.DBAKey(documentNumber, _parseDate(dateOfBirth),
+          _parseDate(dateOfExpiry)); // Use DBAKey for session
 
-      await passport.startSession(bacKey); // Start session directly on passport
+      await passport.startSession(bacKey);
 
-      final efCom = await passport.readEfCOM();
-      final dmrtdDg1 = await passport.readEfDG1(); // Renamed to avoid conflict with custom DG11
+      CardDataModel result = await gettingCardData(passport: passport);
 
-      dmrtd.MRZ mrz = dmrtdDg1.mrz; // Assign mrz from dmrtdDg1
+      dmrtd.MRZ mrz = result.efdg1.mrz;
 
       EfDG2? customDg2Data; // Your custom DG2 object
       EfDG11? customDg11Data; // Your custom DG11 object
@@ -131,12 +218,11 @@ class Ekyc {
       String? base64Image; // For direct UI display (from DG2)
 
       // Read DG2 (Facial Image)
-      if (efCom.dgTags.contains(dmrtd.EfDG2.TAG)) {
+      if (result.efcom.dgTags.contains(dmrtd.EfDG2.TAG)) {
         try {
-          final dmrtdDg2 = await passport.readEfDG2();
-          if (dmrtdDg2.imageData != null) {
-            base64Image = base64Encode(dmrtdDg2.imageData!); 
-            customDg2Data = dmrtdDg2 as EfDG2?; // Correct: Create your custom DG2 object from dmrtd's JSON data
+          if (result.efdg2.imageData != null) {
+            base64Image = base64Encode(result.efdg2.imageData!);
+            customDg2Data = result.efdg2;
           }
         } catch (e) {
           print('Failed to read DG2: $e');
@@ -144,20 +230,18 @@ class Ekyc {
       }
 
       // Read DG11 (Additional Personal Details)
-      if (efCom.dgTags.contains(dmrtd.EfDG11.TAG)) {
+      if (result.efcom.dgTags.contains(dmrtd.EfDG11.TAG)) {
         try {
-          final dmrtdDg11 = await passport.readEfDG11();
-          customDg11Data = dmrtdDg11 as EfDG11?; // Correct: Create your custom DG11 object from dmrtd's map data
+          customDg11Data = result.efdg11;
         } catch (e) {
           print('Failed to read DG11: $e');
         }
       }
 
       // Read DG12 (Additional Document Details)
-      if (efCom.dgTags.contains(dmrtd.EfDG12.TAG)) {
+      if (result.efcom.dgTags.contains(dmrtd.EfDG12.TAG)) {
         try {
-          final dmrtdDg12 = await passport.readEfDG12();
-          customDg12Data = dmrtdDg12 as EfDG12?; // Correct: Create your custom DG12 object from dmrtd's JSON data
+          customDg12Data = result.efdg12;
         } catch (e) {
           print('Failed to read DG12: $e');
         }
@@ -169,9 +253,11 @@ class Ekyc {
         dateOfExpiry: _formatDate(mrz.dateOfExpiry),
         firstName: mrz.firstName,
         lastName: mrz.lastName,
-        gender: mrz.gender, // Correct: Access the name of the enum value for display
+        gender: mrz.gender,
+        // Correct: Access the name of the enum value for display
         nationality: mrz.nationality,
-        fullMrz: mrz.toString(), // As per your latest change
+        fullMrz: mrz.toString(),
+        // As per your latest change
         dg2Data: customDg2Data,
         base64Image: base64Image,
         dg11Data: customDg11Data,
@@ -200,7 +286,9 @@ class Ekyc {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
-  Future<EkycResult?> startKycFlow({required BuildContext context}) async {
+  Future<Map<String, dynamic>?> startKycFlow({required BuildContext context}) async {
+    var result;
+
     // 1. Show Document Type Dialog
     final docType = await showDialog<DocumentType>(
       context: context,
@@ -231,17 +319,23 @@ class Ekyc {
     // 1.5. Check NFC status before proceeding
     try {
       final nfcStatus = await Ekyc.checkNfc();
-      if (nfcStatus['enabled'] == false || nfcStatus['enabled'] == null) {
+      if (nfcStatus['supported'] == false || nfcStatus['enabled'] == false) {
         if (!context.mounted) return null;
         await showDialog(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('NFC Not Enabled'),
-            content: Text(nfcStatus['error'] != null ? 'NFC is not enabled: ${nfcStatus['error']}' : 'NFC is not enabled. Please enable NFC in your device settings and try again.'),
-            actions: [TextButton(onPressed: () {
-              if (!context.mounted) return;
-              Navigator.of(context).pop();
-            }, child: const Text('OK'))],
+            content: Text(nfcStatus['error'] != null
+                ? 'NFC is not enabled: ${nfcStatus['error']}'
+                : 'NFC is not enabled. Please enable NFC in your device settings and try again.'),
+            actions: [
+              TextButton(
+                  onPressed: () {
+                    if (!context.mounted) return;
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('OK'))
+            ],
           ),
         );
         return null;
@@ -253,10 +347,14 @@ class Ekyc {
         builder: (context) => AlertDialog(
           title: const Text('NFC Check Failed'),
           content: Text('Failed to check NFC status: $e'),
-          actions: [TextButton(onPressed: () {
-            if (!context.mounted) return;
-            Navigator.of(context).pop();
-          }, child: const Text('OK'))],
+          actions: [
+            TextButton(
+                onPressed: () {
+                  if (!context.mounted) return;
+                  Navigator.of(context).pop();
+                },
+                child: const Text('OK'))
+          ],
         ),
       );
       return null;
@@ -272,11 +370,17 @@ class Ekyc {
     if (mrzData == null) return null; // User cancelled scan
     // 3. Trigger NFC read and return result
     try {
-      final result = await Ekyc.readCard(
+      await Ekyc.initialize();
+      await Ekyc.readPassport(
         documentNumber: mrzData['docNumber']!,
         dateOfBirth: mrzData['dob']!,
         dateOfExpiry: mrzData['doe']!,
       );
+      // await Ekyc.readPassport(
+      //   documentNumber: "302127750",
+      //   dateOfBirth: "000527",
+      //   dateOfExpiry: "310119",
+      // );
       return result; // Return the EkycResult directly
     } catch (e) {
       rethrow;
