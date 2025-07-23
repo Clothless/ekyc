@@ -198,124 +198,164 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
 
                 // === DG1: MRZ Info ===
-                passportService?.getInputStream(PassportService.EF_DG1)?.let { dg1Stream ->
-                    val dg1Bytes = dg1Stream.readBytes()
-                    val dg1File = DG1File(ByteArrayInputStream(dg1Bytes))
-                    mrzInfo = dg1File.mrzInfo
-                    allDGs["DG1"] = dg1Bytes
+                try {
+                    passportService?.getInputStream(PassportService.EF_DG1)?.let { dg1Stream ->
+                        val dg1Bytes = dg1Stream.readBytes()
+                        val dg1File = DG1File(ByteArrayInputStream(dg1Bytes))
+                        mrzInfo = dg1File.mrzInfo
+                        allDGs["DG1"] = dg1Bytes
+                    }
+                }catch (e: Exception) {
+                    Log.e("DG1_READ", "Failed to read DG1 file: ${e.message}")
                 }
 
                 // === DG2: Face image ===
-                passportService?.getInputStream(PassportService.EF_DG2)?.let { dg2Stream ->
-                    val dg2Bytes = dg2Stream.readBytes()
-                    allDGs["DG2"] = dg2Bytes
+                try{
+                    passportService?.getInputStream(PassportService.EF_DG2)?.let { dg2Stream ->
+                        val dg2Bytes = dg2Stream.readBytes()
+                        allDGs["DG2"] = dg2Bytes
 
-                    val dg2File = DG2File(ByteArrayInputStream(dg2Bytes))
-                    dg2File.faceInfos.firstOrNull()?.faceImageInfos?.firstOrNull()?.let {
-                        photoBytes = it.imageInputStream.readBytes()
+                        val dg2File = DG2File(ByteArrayInputStream(dg2Bytes))
+                        dg2File.faceInfos.firstOrNull()?.faceImageInfos?.firstOrNull()?.let {
+                            photoBytes = it.imageInputStream.readBytes()
+                        }
+                        base64Photo = photoBytes?.let {
+                            Base64.encodeToString(it, Base64.NO_WRAP)
+                        }
                     }
-                    base64Photo = photoBytes?.let {
-                        Base64.encodeToString(it, Base64.NO_WRAP)
-                    }
+                }catch (e: Exception) {
+                    Log.e("DG2_READ", "Failed to read DG2 file: ${e.message}")
                 }
 
                 //Getting Signature
-                passportService?.getInputStream(PassportService.EF_DG7)?.let { dg7Stream ->
-                    val dg7Bytes = dg7Stream.readBytes()
-                    val dg7 = DG7File(ByteArrayInputStream(dg7Bytes))
-                    val sigInfos = dg7.getImages()
-                    val sigImagesData = sigInfos.mapNotNull { info ->
-                        info.imageInputStream.readBytes()
+                try{
+                    passportService?.getInputStream(PassportService.EF_DG7)?.let { dg7Stream ->
+                        val dg7Bytes = dg7Stream.readBytes()
+                        val dg7 = DG7File(ByteArrayInputStream(dg7Bytes))
+                        val sigInfos = dg7.getImages()
+                        val sigImagesData = sigInfos.mapNotNull { info ->
+                            info.imageInputStream.readBytes()
+                        }
+                        val base64Signatures = sigImagesData.map { bytes ->
+                            Base64.encodeToString(bytes, Base64.NO_WRAP)
+                        }
+                        images = base64Signatures
                     }
-                    val base64Signatures = sigImagesData.map { bytes ->
-                        Base64.encodeToString(bytes, Base64.NO_WRAP)
-                    }
-                    images = base64Signatures
+                }catch (e: Exception) {
+                    Log.e("DG7_READ", "Failed to read DG7 file: ${e.message}")
                 }
 
 //                 Get security info from DG14
-                passportService?.getInputStream(PassportService.EF_DG14)?.let { dg14Stream ->
-                    val dg14Bytes = dg14Stream.readBytes()
-                    val dg14 = DG14File(ByteArrayInputStream(dg14Bytes))
-                    val info = dg14.getSecurityInfos()
-                    securityInfos = info
+                try{
+                    passportService?.getInputStream(PassportService.EF_DG14)?.let { dg14Stream ->
+                        val dg14Bytes = dg14Stream.readBytes()
+                        val dg14 = DG14File(ByteArrayInputStream(dg14Bytes))
+                        val info = dg14.getSecurityInfos()
+                        securityInfos = info
+                    }
+                }catch (e: Exception) {
+                    Log.e("DG14_READ", "Failed to read DG14 file: ${e.message}")
                 }
 
                 // Get public Key from DG15
-                passportService?.getInputStream(PassportService.EF_DG15)?.let { dg15Stream ->
-                    val dg15Bytes = dg15Stream.readBytes()
-                    val dg15 = DG15File(ByteArrayInputStream(dg15Bytes))
-                    val key = dg15.getPublicKey()
-                    publicKey = key
+                try{
+                    passportService?.getInputStream(PassportService.EF_DG15)?.let { dg15Stream ->
+                        val dg15Bytes = dg15Stream.readBytes()
+                        val dg15 = DG15File(ByteArrayInputStream(dg15Bytes))
+                        val key = dg15.getPublicKey()
+                        publicKey = key
+                    }
+                }catch (e: Exception) {
+                    Log.e("DG15_READ", "Failed to read DG15 file: ${e.message}")
                 }
 
 
 
 
                 // === DG3: Fingerprints ===
-                passportService?.getInputStream(PassportService.EF_DG3)?.let { dg3Stream ->
-                    val dg3Bytes = dg3Stream.readBytes()
-                    allDGs["DG3"] = dg3Bytes
-                    fingerprintBytes = dg3Bytes // you can parse with DG3File if needed
+                try{
+                    passportService?.getInputStream(PassportService.EF_DG3)?.let { dg3Stream ->
+                        val dg3Bytes = dg3Stream.readBytes()
+                        allDGs["DG3"] = dg3Bytes
+                        fingerprintBytes = dg3Bytes // you can parse with DG3File if needed
+                    }
+                }catch (e: Exception) {
+                    Log.e("DG3_READ", "Failed to read DG3 file: ${e.message}")
                 }
 
                 // === DG4: Iris ===
-                passportService?.getInputStream(PassportService.EF_DG4)?.let { dg4Stream ->
-                    val dg4Bytes = dg4Stream.readBytes()
-                    allDGs["DG4"] = dg4Bytes
-                    irisBytes = dg4Bytes // you can parse with DG4File if needed
+                try{
+                    passportService?.getInputStream(PassportService.EF_DG4)?.let { dg4Stream ->
+                        val dg4Bytes = dg4Stream.readBytes()
+                        allDGs["DG4"] = dg4Bytes
+                        irisBytes = dg4Bytes // you can parse with DG4File if needed
+                    }
+                }catch (e: Exception) {
+                    Log.e("DG4_READ", "Failed to read DG4 file: ${e.message}")
                 }
 
-                passportService?.getInputStream(PassportService.EF_SOD)?.use { sodStream ->
-                    val sodBytes = sodStream.readBytes()
-                    val sodFile = SODFile(ByteArrayInputStream(sodBytes))
+                try{
+                    passportService?.getInputStream(PassportService.EF_SOD)?.use { sodStream ->
+                        val sodBytes = sodStream.readBytes()
+                        val sodFile = SODFile(ByteArrayInputStream(sodBytes))
 
-                    signerCert = sodFile.getDocSigningCertificate()
-                    val signatureBytes = sodFile.encryptedDigest
-                    val signatureHex = signatureBytes.joinToString("") { "%02X".format(it) }
+                        signerCert = sodFile.getDocSigningCertificate()
+                        val signatureBytes = sodFile.encryptedDigest
+                        val signatureHex = signatureBytes.joinToString("") { "%02X".format(it) }
 
-                    signatureAlgorithm = sodFile.signerInfoDigestAlgorithm
-                    digestAlgorithm = sodFile.digestAlgorithm
+                        signatureAlgorithm = sodFile.signerInfoDigestAlgorithm
+                        digestAlgorithm = sodFile.digestAlgorithm
 
-                    val dgHashes = sodFile.dataGroupHashes
-                    val formattedHashes = dgHashes.mapKeys { "DG${it.key}" }
-                        .mapValues { entry -> entry.value.joinToString("") { b -> "%02X".format(b) } }
+                        val dgHashes = sodFile.dataGroupHashes
+                        val formattedHashes = dgHashes.mapKeys { "DG${it.key}" }
+                            .mapValues { entry -> entry.value.joinToString("") { b -> "%02X".format(b) } }
 
 
 //                    sodInfo["signatureAlgorithm"] = sodFile.signatureAlgorithm
 //                    sodInfo["digestAlgorithm"] = sodFile.digestAlgorithm
 //                    sodInfo["signatureHex"] = signatureHex
-                    issuer = signerCert.issuerDN.name
-                    subject = signerCert.subjectDN.name
-                    validFrom = signerCert.notBefore.toString()
-                    validTo = signerCert.notAfter.toString()
-                    serialNumber = signerCert.serialNumber.toString()
+                        issuer = signerCert.issuerDN.name
+                        subject = signerCert.subjectDN.name
+                        validFrom = signerCert.notBefore.toString()
+                        validTo = signerCert.notAfter.toString()
+                        serialNumber = signerCert.serialNumber.toString()
 //                    sodInfo["dataGroupHashes"] = formattedHashes
+                    }
+                }catch (e: Exception) {
+                    Log.e("SOD_READ", "Failed to read SOD file: ${e.message}")
                 }
 
-                passportService?.getInputStream(PassportService.EF_DG14)?.let { dg14Stream ->
-                    try {
-                        val dg14Bytes = dg14Stream.readBytes()
-                        val dg14File = DG14File(ByteArrayInputStream(dg14Bytes))
-                        dg14Info["securityInfos"] = dg14File.securityInfos
-                    } catch (e: Exception) {
-                        dg14Info["error"] = "Failed to parse DG14: ${e.message}"
+                try{
+                    passportService?.getInputStream(PassportService.EF_DG14)?.let { dg14Stream ->
+                        try {
+                            val dg14Bytes = dg14Stream.readBytes()
+                            val dg14File = DG14File(ByteArrayInputStream(dg14Bytes))
+                            dg14Info["securityInfos"] = dg14File.securityInfos
+                        } catch (e: Exception) {
+                            dg14Info["error"] = "Failed to parse DG14: ${e.message}"
+                        }
                     }
+                }catch (e: Exception) {
+                    Log.e("DG14_READ", "Failed to read DG14 file: ${e.message}")
                 }
 
-                passportService?.getInputStream(PassportService.EF_DG15)?.let { dg15Stream ->
-                    try {
-                        val dg15Bytes = dg15Stream.readBytes()
-                        val dg15File = DG15File(ByteArrayInputStream(dg15Bytes))
-                        val pubKey = dg15File.publicKey
+                try{
+                    passportService?.getInputStream(PassportService.EF_DG15)?.let { dg15Stream ->
+                        try {
+                            val dg15Bytes = dg15Stream.readBytes()
+                            val dg15File = DG15File(ByteArrayInputStream(dg15Bytes))
+                            val pubKey = dg15File.publicKey
 
-                        dg15Info["algorithm"] = pubKey.algorithm
-                        dg15Info["format"] = pubKey.format
-                        dg15Info["encoded"] = pubKey.encoded.joinToString("") { b -> "%02X".format(b) }
+                            dg15Info["algorithm"] = pubKey.algorithm
+                            dg15Info["format"] = pubKey.format
+                            dg15Info["encoded"] = pubKey.encoded.joinToString("") { b -> "%02X".format(b) }
 
-                    } catch (e: Exception) {
-                        dg15Info["error"] = "Failed to parse DG15: ${e.message}"
+                        } catch (e: Exception) {
+                            dg15Info["error"] = "Failed to parse DG15: ${e.message}"
+                        }
                     }
+                }catch (e: Exception) {
+                    Log.e("DG15_READ", "Failed to read DG15 file: ${e.message}")
                 }
 
 
