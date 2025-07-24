@@ -117,6 +117,22 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  String decodeWindows1256(List<int> encodedBytes) {
+    // Define the reverse mapping for Windows-1256
+    final List<String> windows1256ReverseMap = [
+      // ... (mapping of byte values back to characters)
+    ];
+
+    StringBuffer decodedString = StringBuffer();
+
+    for (int byte in encodedBytes) {
+      // Convert each byte back to its corresponding character
+      decodedString.write(windows1256ReverseMap[byte]);
+    }
+
+    return decodedString.toString();
+  }
+
   Widget _buildResultDetails() {
     if (_result == null) return const SizedBox.shrink();
     return Column(
@@ -124,34 +140,73 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         _buildPhoto(),
         const SizedBox(height: 20),
-        _buildResultCard("First Name", _result!["firstName"]),
-        _buildResultCard("Last Name", _result!["lastName"]),
-        _buildResultCard("Date of Birth", _result!["dateOfBirth"]),
+        Text("Pesonal Information", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        _buildResultCard("Full Name", _result!["firstName"] + "\n" + _result!["lastName"]),
+        _buildResultCard("Full Arabic Name", _result!["unicodeNames"]['arabicName']),
+        _buildResultCard("Given names", _result!["firstName"]),
+        _buildResultCard("Name", _result!["lastName"]),
         _buildResultCard("Gender", _result!["gender"]),
+        _buildResultCard("Other Information", _result!["unicodeNames"]['otherInfo']),
         _buildResultCard("Nationality", _result!["nationality"]),
-        _buildResultCard("Document Number", _result!["documentNumber"]),
+        _buildResultCard("Date of Birth", _result!["additionalPersonalDetails"]["fullDateOfBirth"]),
+        _buildResultCard("Place of Birth", _result!["unicodeNames"]["placeOfBirth"]),
+        _buildResultCard("Custodian", _result!["unicodeNames"]["custodian"]),
+        _buildResultCard("National Identification Number", _result!["unicodeNames"]["personalNumber"]),
+        const SizedBox(height: 20,),
+        Divider(thickness: 1, color: Colors.grey[300]),
+        Text("Document Information", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         _buildResultCard("Document Code", _result!["documentCode"]),
-        _buildResultCard("Document Type", _result!["documentType"]),
-        _buildResultCard("Date of Expiry", _result!["dateOfExpiry"]),
-        _buildResultCard("Verified", _result!["isVerified"] ? "Yes" : "No"),
-        _result!['publicKey'] != null ? Column(
-          children: [
-            const SizedBox(height: 20,),
-            Divider(thickness: 1, color: Colors.grey[300]),
-            Text("Security", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            _buildResultCard("Public Key algorithm", _result!["publicKey"]['algorithm']),
-            _buildResultCard("Public Key Format", _result!["publicKey"]['format']),
-            _buildResultCard("Public key encoded", _result!["publicKey"]['encoded']),
-          ],
-        ) : Container(),
-        (_result!['images'] != null && _result!['images'].isNotEmpty) ? Column(
-          children: [
-            const SizedBox(height: 20,),
-            Divider(thickness: 1, color: Colors.grey[300]),
-            Text("Signature", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            Image.memory(Uint8List.fromList(base64Decode(_result!["images"][0])), fit: BoxFit.cover,),
-          ],
-        ) : Container(),
+        _buildResultCard("Document Number", _result!["documentNumber"]),
+        _buildResultCard("Issuing Country", _result!["issuingState"]),
+        const SizedBox(height: 20,),
+        Divider(thickness: 1, color: Colors.grey[300]),
+        Text("Chip Information", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        _buildResultCard("LDS Version", _result!["ldsVersion"]),
+        _buildResultCard("Unicode Version", _result!["unicodeVersion"]),
+        _buildResultCard("Data groups", _result!["tagsList"].toString()),
+        const SizedBox(height: 20,),
+        Divider(thickness: 1, color: Colors.grey[300]),
+        Text("Document Signing Certificate", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        _buildResultCard("Serial Number", _result!["docSigningCert"]['serialNumber']),
+        _buildResultCard("Signature algorithm", _result!["docSigningCert"]['Signature algorithm']),
+        _buildResultCard("Public Key Algorithm", _result!["docSigningCert"]['Public Key'].split(" ")[0]),
+        _buildResultCard("Issuer", _result!["docSigningCert"]['issuer']),
+        // _buildResultCard("Signature Thumbprint", _result!["docSigningCert"]['issuer']),
+        _buildResultCard("Subject", _result!["docSigningCert"]['Subject']),
+        _buildResultCard("Valid from", _result!["docSigningCert"]['Valid from']),
+        _buildResultCard("Valid to", _result!["docSigningCert"]['Valid until']),
+        _buildResultCard("Signature", base64Encode(_result!["docSigningCert"]['signature'])),
+        _buildResultCard("Version", _result!["docSigningCert"]['version']),
+        const SizedBox(height: 20,),
+        Divider(thickness: 1, color: Colors.grey[300]),
+        Text("Country Signing Certificate", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        _buildResultCard("Serial Number", _result!["docSigningCert"]['serialNumber']),
+        _buildResultCard("Signature algorithm", _result!["docSigningCert"]['Signature algorithm']),
+        _buildResultCard("Public Key Algorithm", _result!["docSigningCert"]['Public Key'].split(" ")[0]),
+        _buildResultCard("Issuer", _result!["docSigningCert"]['issuer']),
+        // _buildResultCard("Signature Thumbprint", _result!["docSigningCert"]['issuer']),
+        _buildResultCard("Subject", _result!["docSigningCert"]['Subject']),
+        _buildResultCard("Valid from", _result!["docSigningCert"]['Valid from']),
+        _buildResultCard("Valid to", _result!["docSigningCert"]['Valid until']),
+        _buildResultCard("Signature", base64Encode(_result!["docSigningCert"]['signature'])),
+        _buildResultCard("Version", _result!["docSigningCert"]['version']),
+        const SizedBox(height: 20,),
+        // Divider(thickness: 1, color: Colors.grey[300]),
+        // Text("Security", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        // _buildResultCard("Digest Algorithm", _result!["digestAlgorithm"]),
+        // _buildResultCard("Digest Algorithm Signer info", _result!["digestAlgorithmSignerInfo"]),
+        // _buildResultCard("Unicode Version", _result!["unicodeVersion"]),
+        // _buildResultCard("Public Key algorithm", _result!["publicKey"]['algorithm']),
+        // _buildResultCard("Public Key Format", _result!["publicKey"]['format']),
+        // _buildResultCard("Public key encoded", _result!["publicKey"]['encoded']),
+        const SizedBox(height: 20,),
+        Divider(thickness: 1, color: Colors.grey[300]),
+        Text("Signature", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Image.memory(Uint8List.fromList(base64Decode(_result!["images"][0])), fit: BoxFit.cover,),
+        const SizedBox(height: 20,),
+        Divider(thickness: 1, color: Colors.grey[300]),
+        Text("MRZ from chip", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        _buildResultCard("", _result!["fullMrz"]),
       ],
     );
   }
