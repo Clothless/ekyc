@@ -417,6 +417,269 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         return filteredWords
     }
 
+    private fun readCOM(): Map<String, Any?> {
+        return try {
+            val dgcomBytes = passportService?.getInputStream(PassportService.EF_COM)?.readBytes()
+            val dgcom = COMFile(ByteArrayInputStream(dgcomBytes))
+            val lds = dgcom.getLDSVersion()
+            val unic = dgcom.getUnicodeVersion()
+            val tags = dgcom.getTagList().toList()
+
+            mapOf(
+                "ldsVersion" to lds,
+                "unicodeVersion" to unic,
+                "tagsList" to tags
+            )
+        } catch (e: Exception) {
+            Log.e("READ_DG1", "Failed: ${e.message}")
+            mapOf(
+                "ldsVersion" to "",
+                "unicodeVersion" to "",
+                "tagsList" to ""
+            )
+        }
+    }
+
+    private fun readSOD(): Map<String, Any?> {
+        return try {
+            val sodBytes = passportService?.getInputStream(PassportService.EF_SOD)?.readBytes()
+            val sodFile = SODFile(ByteArrayInputStream(sodBytes))
+
+            val digestAlgorithm = sodFile.getDigestAlgorithm()
+            val digestAlgorithmSignerInfo = sodFile.getSignerInfoDigestAlgorithm()
+
+            mapOf(
+                "version" to (sodFile.getDocSigningCertificate() as X509Certificate).version,
+                "serialNumber" to (sodFile.getDocSigningCertificate() as X509Certificate).getSerialNumber().toString(),
+                "signature" to (sodFile.getDocSigningCertificate() as X509Certificate).signature,
+                "Subject" to (sodFile.getDocSigningCertificate() as X509Certificate).getSubjectDN().toString(),
+                "issuer" to (sodFile.getDocSigningCertificate() as X509Certificate).getIssuerDN().toString(),
+                "Valid from" to (sodFile.getDocSigningCertificate() as X509Certificate).getNotBefore().toString(),
+                "Valid until" to (sodFile.getDocSigningCertificate() as X509Certificate).getNotAfter().toString(),
+                "Public Key" to (sodFile.getDocSigningCertificate() as X509Certificate).getPublicKey().toString(),
+                "Signature algorithm" to (sodFile.getDocSigningCertificate() as X509Certificate).getSigAlgName().toString(),
+                "full" to (sodFile.getDocSigningCertificate() as X509Certificate).toString(),
+                "digestAlgorithm" to digestAlgorithm,
+                "digestAlgorithmSignerInfo" to digestAlgorithmSignerInfo,
+            )
+        } catch (e: Exception) {
+            Log.e("READ_DG1", "Failed: ${e.message}")
+            mapOf(
+                "version" to "",
+                "serialNumber" to "",
+                "signature" to "",
+                "Subject" to "",
+                "issuer" to "",
+                "Valid from" to "",
+                "Valid until" to "",
+                "Public Key" to "",
+                "Signature algorithm" to "",
+                "full" to "",
+                "full" to "",
+            )
+        }
+    }
+
+    private fun readDG1(): Map<String, Any?> {
+        return try {
+            val dg1Bytes = passportService?.getInputStream(PassportService.EF_DG1)?.readBytes()
+            val dg1File = dg1Bytes?.let { DG1File(ByteArrayInputStream(it)) }
+            val mrzInfo = dg1File?.mrzInfo
+
+            mapOf(
+                "documentNumber" to mrzInfo?.documentNumber,
+                "documentCode" to mrzInfo?.getDocumentCode(),
+                "documentType" to mrzInfo?.documentType,
+                "issuingState" to mrzInfo?.getIssuingState(),
+                "firstName" to mrzInfo?.secondaryIdentifier,
+                "lastName" to mrzInfo?.primaryIdentifier,
+                "nationality" to mrzInfo?.nationality,
+                "dateOfBirth" to mrzInfo?.dateOfBirth,
+                "dateOfExpiry" to mrzInfo?.dateOfExpiry.toString(),
+                "gender" to mrzInfo?.gender.toString(),
+                "opt1" to mrzInfo?.optionalData1,
+                "opt2" to mrzInfo?.optionalData2,
+                "fullMrz" to mrzInfo?.toString(),
+            )
+        } catch (e: Exception) {
+            Log.e("READ_DG1", "Failed: ${e.message}")
+            mapOf(
+                "documentNumber" to "",
+                "documentCode" to "",
+                "documentType" to "",
+                "issuingState" to "",
+                "firstName" to "",
+                "lastName" to "",
+                "nationality" to "",
+                "dateOfBirth" to "",
+                "dateOfExpiry" to "",
+                "gender" to "",
+                "opt1" to "",
+                "opt2" to "",
+                "fullMrz" to "",
+            )
+        }
+    }
+
+    private fun readDG2(): Map<String, Any?> {
+        return try {
+            val dg2Bytes = passportService?.getInputStream(PassportService.EF_DG2)?.readBytes()
+            val dg2File = dg2Bytes?.let { DG2File(ByteArrayInputStream(it)) }
+            val photoBytes = dg2File?.faceInfos?.firstOrNull()
+                ?.faceImageInfos?.firstOrNull()
+                ?.imageInputStream?.readBytes()
+
+            val base64Photo = photoBytes?.let {
+                Base64.encodeToString(it, Base64.NO_WRAP)
+            }
+
+
+            mapOf(
+                "photo" to base64Photo,
+            )
+        } catch (e: Exception) {
+            Log.e("READ_DG1", "Failed: ${e.message}")
+            mapOf(
+                "photo" to "",
+            )
+        }
+    }
+
+    private fun readDG7(): Map<String, Any?> {
+        return try {
+            val dg7Bytes = passportService?.getInputStream(PassportService.EF_DG7)?.readBytes()
+            val dg7File = dg7Bytes?.let { DG7File(ByteArrayInputStream(it)) }
+            val sigInfos = dg7File?.getImages()
+            val sigImagesData = sigInfos?.mapNotNull { info ->
+                info.imageInputStream.readBytes()
+            }
+            val base64Signatures = sigImagesData?.map { bytes ->
+                Base64.encodeToString(bytes, Base64.NO_WRAP)
+            }
+            val images = base64Signatures
+
+            mapOf(
+                "images" to images,
+            )
+        } catch (e: Exception) {
+            Log.e("READ_DG1", "Failed: ${e.message}")
+            mapOf(
+                "images" to "",
+            )
+        }
+    }
+
+    private fun readDG11(): Map<String, Any?> {
+        return try {
+            val dg11Bytes = passportService?.getInputStream(PassportService.EF_DG11)?.readBytes()
+            val dg11File = dg11Bytes?.let { DG11File(ByteArrayInputStream(it)) }
+
+            val arabicWords = dg11Bytes?.let { getArabic(it) }
+            val address = getArabic(dg11File?.permanentAddress[1]?.toByteArray()!!)
+
+            mapOf(
+                "full" to dg11File?.permanentAddress.toString(),
+                "arabicName" to "${arabicWords!![0]} ${arabicWords!![1]}",
+                "nameOfHolder" to arabicWords!![1],
+                "nameOfHolderOriginal" to dg11File?.nameOfHolder,
+                "personalNumber" to dg11File?.personalNumber,
+                "fullDateOfBirth" to dg11File?.fullDateOfBirth,
+                "placeOfBirth" to "${dg11File?.placeOfBirth[0]}, ${arabicWords!![2]}",
+                "otherInfo" to if(arabicWords.size > 4) arabicWords!![4] else "--",
+                "permanentAddress" to dg11File?.permanentAddress.toString(),
+                "permanentAddress1" to address[0],
+                "custodian" to dg11File?.permanentAddress[2],
+                "telephone" to dg11File?.telephone,
+                "profession" to dg11File?.profession,
+                "title" to dg11File?.title,
+                "personalSummary" to dg11File?.personalSummary,
+                "proofOfCitizenship" to dg11File?.proofOfCitizenship?.toString(),
+                "custodyInformation" to dg11File?.custodyInformation
+            )
+        } catch (e: Exception) {
+            Log.e("READ_DG11", "Failed: ${e.message}")
+            mapOf(
+                "full" to "",
+                "arabicName" to "",
+                "nameOfHolder" to "",
+                "nameOfHolderOriginal" to "",
+                "otherNames" to "",
+                "personalNumber" to "",
+                "fullDateOfBirth" to "",
+                "placeOfBirth" to "",
+                "otherInfo" to "",
+                "permanentAddress" to "",
+                "permanentAddress1" to "",
+                "custodian" to "",
+                "telephone" to "",
+                "profession" to "",
+                "title" to "",
+                "personalSummary" to "",
+                "proofOfCitizenship" to "",
+                "custodyInformation" to ""
+            )
+        }
+    }
+
+    private fun readDG12(): Map<String, Any?> {
+        return try {
+            val dg12Bytes = passportService?.getInputStream(PassportService.EF_DG12)?.readBytes()
+            val dg12File = DG12File(ByteArrayInputStream(dg12Bytes))
+
+            val issuingAuthority = dg12File.issuingAuthority
+            val dateOfIssue = dg12File.dateOfIssue
+            val otherPersons = dg12File.namesOfOtherPersons
+            val endorsementsObservations = dg12File.endorsementsAndObservations
+            val taxExitRequirements = dg12File.taxOrExitRequirements
+            val imageOfFront = dg12File.imageOfFront
+            val imageOfRear = dg12File.imageOfRear
+            val personalizationTime = dg12File.dateAndTimeOfPersonalization
+            val personalizationDeviceSerialNumber = dg12File.personalizationSystemSerialNumber
+
+            mapOf(
+                "issuingAuthority" to issuingAuthority,
+                "dateOfIssue" to dateOfIssue,
+                "otherPersons" to otherPersons?.joinToString(", "),
+                "endorsementsObservations" to endorsementsObservations,
+                "taxExitRequirements" to taxExitRequirements,
+                "personalizationTime" to personalizationTime,
+                "personalizationDeviceSerialNumber" to personalizationDeviceSerialNumber
+            )
+
+        } catch (e: Exception) {
+            Log.e("READ_DG11", "Failed: ${e.message}")
+            mapOf(
+                "issuingAuthority" to "",
+                "dateOfIssue" to "",
+                "otherPersons" to "",
+                "endorsementsObservations" to "",
+                "taxExitRequirements" to "",
+                "personalizationTime" to "",
+                "personalizationDeviceSerialNumber" to ""
+            )
+        }
+    }
+
+    private fun readDG15(): Map<String, Any?> {
+        return try {
+            val dg15Bytes = passportService?.getInputStream(PassportService.EF_DG15)?.readBytes()
+            val dg15File = DG15File(ByteArrayInputStream(dg15Bytes))
+            val pubKey = dg15File.getPublicKey()
+            mapOf(
+                "algorithm" to pubKey.algorithm,
+                "format" to pubKey.format,
+                "encoded" to pubKey.encoded
+            )
+        } catch (e: Exception) {
+            Log.e("READ_DG11", "Failed: ${e.message}")
+            mapOf(
+                "algorithm" to "",
+                "format" to "",
+                "encoded" to ""
+            )
+        }
+    }
+
 
     private fun readActualPassport(tag: Tag, bacKey: BACKey): Map<String, Any?> {
         val isoDep = IsoDep.get(tag)
@@ -424,404 +687,35 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
         try {
             val cardService = CardService.getInstance(isoDep)
-            passportService = PassportService(
-                cardService,
-                PassportService.NORMAL_MAX_TRANCEIVE_LENGTH,
-                PassportService.DEFAULT_MAX_BLOCKSIZE,
-                true,
-                true
-            )
+            passportService = PassportService(cardService, PassportService.NORMAL_MAX_TRANCEIVE_LENGTH, PassportService.DEFAULT_MAX_BLOCKSIZE, true, true)
             passportService?.open()
             passportService?.sendSelectApplet(false)
             passportService?.doBAC(bacKey)
 
-            // Containers
-            var mrzInfo: MRZInfo? = null
-            var photoBytes: ByteArray? = null
-            var base64Photo: String? = null
-            var fingerprintBytes: Any? = null
-            var irisBytes: ByteArray? = null
-            var signerCert: X509Certificate? = null
-            var validFrom: String? = null
-            var validTo: String? = null
-            var issuer: String? = null
-            var subject: String? = null
-            var signatureAlgorithm: String? = null
-            val dg14Info = mutableMapOf<String, Any?>()
-            val dg15Info = mutableMapOf<String, Any?>()
-            val availableDGs = mutableListOf<Int>()
-            var images: Any? = null
-            var publicKey: Any? = null
-            var securityInfos: Any? = null
-            var digestAlgorithm: String? = null
-            var digestAlgorithmSignerInfo: String? = null
-            var ldsVersion: String? = null
-            var unicodeVersion: String? = null
-            var tagsList: Any? = null
-            var docSigningCert: Any? = null
-            var issuerX500Principal: Any? = null
-            var serialNumber: BigInteger? = null
-            var country: String? = null
-            var fingerPrintImages = mutableListOf<Any?>()
-            val allDGs = mutableMapOf<String, Any?>()
-            var unicodeNames: Map<String, String?>? = null
-            var additionalPersonalDetails: Map<String, String?>? = null
-            var additionalDocumentDetails: Map<String, String?>? = null
-            var arabicName: String? = null
-            var nativeScriptName: String? = null
-            var testing: Map<String, ByteArray>? = null
-            var arabicWords: List<String>? = null
+            val com = readCOM()
+            val sod = readSOD()
+            val dg1 = readDG1()
+            val dg2 = readDG2()
+            val dg7 = readDG7()
+            val dg11 = readDG11()
+            val dg12 = readDG12()
+            val dg15 = readDG15()
 
-            try {
-
-                val comBytes = passportService?.getInputStream(PassportService.EF_COM)?.readBytes()
-
-                comBytes?.let {
-                    try {
-                        val comFile = COMFile(ByteArrayInputStream(it))
-                        availableDGs.addAll(comFile.tagList.toList())
-                    } catch (e: Exception) {
-                        Log.e("COM_READ", "Failed to read COM file: ${e.message}")
-                    }
-                }
-
-
-
-// === DG12: Additional Document Details ===
-                try {
-                    passportService?.getInputStream(PassportService.EF_DG12)?.let { dg12Stream ->
-                        val dg12Bytes = dg12Stream.readBytes()
-                        allDGs["DG12"] = dg12Bytes
-
-                        val dg12File = DG12File(ByteArrayInputStream(dg12Bytes))
-
-                        val issuingAuthority = dg12File.issuingAuthority
-                        val dateOfIssue = dg12File.dateOfIssue
-                        val otherPersons = dg12File.namesOfOtherPersons
-                        val endorsementsObservations = dg12File.endorsementsAndObservations
-                        val taxExitRequirements = dg12File.taxOrExitRequirements
-                        val imageOfFront = dg12File.imageOfFront
-                        val imageOfRear = dg12File.imageOfRear
-                        val personalizationTime = dg12File.dateAndTimeOfPersonalization
-                        val personalizationDeviceSerialNumber = dg12File.personalizationSystemSerialNumber
-
-                        additionalDocumentDetails = mapOf(
-                            "issuingAuthority" to issuingAuthority,
-                            "dateOfIssue" to dateOfIssue,
-                            "otherPersons" to otherPersons?.joinToString(", "),
-                            "endorsementsObservations" to endorsementsObservations,
-                            "taxExitRequirements" to taxExitRequirements,
-                            "personalizationTime" to personalizationTime,
-                            "personalizationDeviceSerialNumber" to personalizationDeviceSerialNumber
-                        )
-
-                        Log.d("DG12_DEBUG", "Issuing Authority: '$issuingAuthority'")
-                        Log.d("DG12_DEBUG", "Date of Issue: '$dateOfIssue'")
-                        Log.d("DG12_DEBUG", "Other Persons: $otherPersons")
-                    }
-                } catch (e: Exception) {
-                    Log.e("DG12_READ", "DG12 not available or failed to read: ${e.message}")
-                    // DG12 is optional, so this is not necessarily an error
-                }
-
-
-                // === DG1: MRZ Info ===
-                passportService?.getInputStream(PassportService.EF_DG1)?.let { dg1Stream ->
-                    val dg1Bytes = dg1Stream.readBytes()
-                    val dg1File = DG1File(ByteArrayInputStream(dg1Bytes))
-                    mrzInfo = dg1File.mrzInfo
-//                    country = mrzInfo?.readCountryCode(dg1Stream)
-                    allDGs["DG1"] = dg1Bytes
-                }
-
-                try {
-                    passportService?.getInputStream(PassportService.EF_DG11)?.let { dg11Stream ->
-                        val dg11Bytes = dg11Stream.readBytes()
-                        allDGs["DG11"] = dg11Bytes
-
-                        val dg11File = DG11File(ByteArrayInputStream(dg11Bytes))
-
-                        // Extract Unicode names
-                        val nameOfHolder = fixEncodingIssues(dg11File.nameOfHolder)
-                        val otherNames = dg11File.otherNames?.map { fixEncodingIssues(it) }
-                        val personalNumber = fixEncodingIssues(dg11File.personalNumber)
-                        val fullDateOfBirth = dg11File.fullDateOfBirth
-                        val placeOfBirth = dg11File.placeOfBirth
-                        val permanentAddress = dg11File.permanentAddress?.map { fixEncodingIssues(it) }
-                        val telephone = dg11File.telephone
-                        val profession = dg11File.profession
-                        val title = dg11File.title
-                        val personalSummary = dg11File.personalSummary
-                        val proofOfCitizenship = dg11File.proofOfCitizenship
-//                        val otherTravelDocumentNumbers = dg11File.otherTravelDocumentNumbers
-                        val custodyInformation = dg11File.custodyInformation
-
-                        // Check if name contains Arabic characters
-                        arabicName = detectArabicName(nameOfHolder)
-                        nativeScriptName = nameOfHolder
-
-                        val manuallyParsedName = tryManualNameExtraction(dg11Bytes)
-
-
-
-                        testing = mapOf(
-                            "rawBytes" to dg11Bytes
-                        )
-
-                        arabicWords = getArabic(dg11Bytes)
-                        val address = getArabic(dg11File.permanentAddress[1].toByteArray())
-
-                        unicodeNames = mapOf(
-                            "full" to dg11File.permanentAddress.toString(),
-                            "arabicName" to "${arabicWords!![0]} ${arabicWords!![1]}",
-                            "nameOfHolder" to "${mrzInfo?.secondaryIdentifier}, ${arabicWords!![1]}",
-                            "nameOfHolderOriginal" to dg11File.nameOfHolder,
-                            "otherNames" to "${mrzInfo?.primaryIdentifier}, ${arabicWords!![0]}",
-                            "personalNumber" to dg11File.personalNumber,
-                            "fullDateOfBirth" to dg11File.fullDateOfBirth,
-                            "placeOfBirth" to "${placeOfBirth[0]}, ${arabicWords!![2]}",
-                            "otherInfo" to if(arabicWords.size > 4) arabicWords!![4] else "--",
-                            "permanentAddress" to dg11File.permanentAddress.toString(),
-                            "permanentAddress1" to address[0],
-                            "custodian" to dg11File.permanentAddress[2],
-                            "telephone" to dg11File.telephone,
-                            "profession" to dg11File.profession,
-                            "title" to dg11File.title,
-                            "personalSummary" to dg11File.personalSummary,
-                            "proofOfCitizenship" to dg11File.proofOfCitizenship?.toString(),
-//                            "otherTravelDocumentNumbers" to otherTravelDocumentNumbers?.joinToString(", "),
-                            "custodyInformation" to dg11File.custodyInformation
-                        )
-
-                        additionalPersonalDetails = unicodeNames
-
-                        Log.d("DG11_DEBUG", "Unicode Name of Holder: '$nameOfHolder'")
-                        Log.d("DG11_DEBUG", "Contains Arabic: ${isArabicText(nameOfHolder)}")
-                        Log.d("DG11_DEBUG", "Other Names: $otherNames")
-                        Log.d("DG11_DEBUG", "Place of Birth: $placeOfBirth")
-                    }
-                } catch (e: Exception) {
-                    Log.e("DG11_READ", "DG11 not available or failed to read: ${e.message}")
-                    // DG11 is optional, so this is not necessarily an error
-                }
-
-                // === DG2: Face image ===
-                passportService?.getInputStream(PassportService.EF_DG2)?.let { dg2Stream ->
-                    val dg2Bytes = dg2Stream.readBytes()
-                    allDGs["DG2"] = dg2Bytes
-
-                    val dg2File = DG2File(ByteArrayInputStream(dg2Bytes))
-                    dg2File.faceInfos.firstOrNull()?.faceImageInfos?.firstOrNull()?.let {
-                        photoBytes = it.imageInputStream.readBytes()
-                    }
-                    base64Photo = photoBytes?.let {
-                        Base64.encodeToString(it, Base64.NO_WRAP)
-                    }
-                }
-
-                //Getting Signature
-                passportService?.getInputStream(PassportService.EF_DG7)?.let { dg7Stream ->
-                    val dg7Bytes = dg7Stream.readBytes()
-                    val dg7 = DG7File(ByteArrayInputStream(dg7Bytes))
-                    val sigInfos = dg7.getImages()
-                    val sigImagesData = sigInfos.mapNotNull { info ->
-                        info.imageInputStream.readBytes()
-                    }
-                    val base64Signatures = sigImagesData.map { bytes ->
-                        Base64.encodeToString(bytes, Base64.NO_WRAP)
-                    }
-                    images = base64Signatures
-                }
-
-                // Get public Key from DG15
-                passportService?.getInputStream(PassportService.EF_DG15)?.let { dg15Stream ->
-                    val dg15Bytes = dg15Stream.readBytes()
-                    val dg15 = DG15File(ByteArrayInputStream(dg15Bytes))
-                    val key = dg15.getPublicKey()
-                    publicKey = key
-                }
-
-
-                // === DG3: Fingerprints ===
-                try {
-                    passportService?.getInputStream(PassportService.EF_DG3)?.let { dg3Stream ->
-                        val dg3Bytes = dg3Stream.readBytes()
-                        allDGs["DG3"] = dg3Bytes
-
-                        val dg3File = DG3File(ByteArrayInputStream(dg3Bytes))
-                        val fingerInfos: List<FingerInfo> = dg3File.fingerInfos
-
-                        for (fingerInfo in fingerInfos) {
-                            val imageInfos: List<FingerImageInfo?> = fingerInfo.getFingerImageInfos()
-                            for (imageInfo in imageInfos) {
-                                imageInfo?.let { info ->
-                                    try {
-                                        // Read the image data as bytes
-                                        val imageBytes = info.imageInputStream.readBytes()
-
-                                        // Convert to Base64 for Flutter compatibility
-                                        val base64Image = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
-
-                                        // Create a map with additional metadata
-                                        val fingerprintData = mapOf(
-                                            "imageData" to base64Image,
-                                            "imageBytes" to imageBytes.toList(), // Raw bytes if needed
-                                            "compressionAlgorithm" to info.compressionAlgorithm,
-                                            "width" to info.width,
-                                            "height" to info.height
-                                        )
-
-                                        fingerPrintImages.add(fingerprintData)
-
-                                    } catch (e: Exception) {
-                                        Log.e("FINGERPRINT", "Failed to process fingerprint image: ${e.message}")
-                                        // Add null or error info to maintain list consistency
-                                        fingerPrintImages.add(mapOf("error" to e.message))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e("DG3_READ", "DG3 not available or failed to read: ${e.message}")
-                    // DG3 is optional, so this is not necessarily an error
-                }
-
-                // === DG4: Iris ===
-//                passportService?.getInputStream(PassportService.EF_DG4)?.let { dg4Stream ->
-//                    val dg4Bytes = dg4Stream.readBytes()
-//                    allDGs["DG4"] = dg4Bytes
-//                    irisBytes = dg4Bytes // you can parse with DG4File if needed
-//                }
-
-                // Getting COM
-                passportService?.getInputStream(PassportService.EF_COM)?.let { dgcomStream ->
-                    val dgcomBytes = dgcomStream.readBytes()
-                    val dgcom = COMFile(ByteArrayInputStream(dgcomBytes))
-                    val lds = dgcom.getLDSVersion()
-                    val unic = dgcom.getUnicodeVersion()
-                    val tags = dgcom.getTagList().toList()
-                    ldsVersion = lds
-                    unicodeVersion = unic
-                    tagsList = tags
-                }
-
-                passportService?.getInputStream(PassportService.EF_SOD)?.use { sodStream ->
-                    val sodBytes = sodStream.readBytes()
-                    val sodFile = SODFile(ByteArrayInputStream(sodBytes))
-
-                    digestAlgorithm = sodFile.getDigestAlgorithm()
-                    digestAlgorithmSignerInfo = sodFile.getSignerInfoDigestAlgorithm()
-//                    ldsVersion = sodFile.getLDSVersion()
-//                    unicodeVersion = sodFile.getUnicodeVersion()
-
-                    docSigningCert = mapOf(
-                        "version" to (sodFile.getDocSigningCertificate() as X509Certificate).version,
-                        "serialNumber" to (sodFile.getDocSigningCertificate() as X509Certificate).getSerialNumber().toString(),
-                        "signature" to (sodFile.getDocSigningCertificate() as X509Certificate).signature,
-                        "Subject" to (sodFile.getDocSigningCertificate() as X509Certificate).getSubjectDN().toString(),
-                        "issuer" to (sodFile.getDocSigningCertificate() as X509Certificate).getIssuerDN().toString(),
-                        "Valid from" to (sodFile.getDocSigningCertificate() as X509Certificate).getNotBefore().toString(),
-                        "Valid until" to (sodFile.getDocSigningCertificate() as X509Certificate).getNotAfter().toString(),
-                        "Public Key" to (sodFile.getDocSigningCertificate() as X509Certificate).getPublicKey().toString(),
-                        "Signature algorithm" to (sodFile.getDocSigningCertificate() as X509Certificate).getSigAlgName().toString(),
-                        "full" to (sodFile.getDocSigningCertificate() as X509Certificate).toString(),
-                        "full" to (sodFile.getDocSigningCertificates()).toString(),
-//                        "validity" to (sodFile.getDocSigningCertificate() as X509Certificate).validity,
-//                        "subject" to (sodFile.getDocSigningCertificate() as X509Certificate).subject,
-//                        "subjectPublicKeyInfo" to (sodFile.getDocSigningCertificate() as X509Certificate).subjectPublicKeyInfo
-                    )
-//                    issuerX500Principal = sodFile.getIssuerX500Principal()
-                    serialNumber = sodFile.getSerialNumber()
-                }
-
-//                passportService?.getInputStream(PassportService.EF_DG14)?.let { dg14Stream ->
-//                    val dg14Bytes = dg14Stream.readBytes()
-//                    val dg14File = DG14File(ByteArrayInputStream(dg14Bytes))
-//                    securityInfos = dg14File.getSecurityInfos()
-//                }
-
-                passportService?.getInputStream(PassportService.EF_DG15)?.let { dg15Stream ->
-                    val dg15Bytes = dg15Stream.readBytes()
-                    val dg15File = DG15File(ByteArrayInputStream(dg15Bytes))
-                    val pubKey = dg15File.getPublicKey()
-                    publicKey = mapOf(
-                        "algorithm" to pubKey.algorithm,
-                        "format" to pubKey.format,
-                        "encoded" to pubKey.encoded
-                    )
-
-                }
-
-
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            // You can continue calling other DG readers similarly
 
             return mapOf(
-                // Unicode Names from DG11
-                "testing" to testing,
-                "unicodeNames" to unicodeNames,
-                "arabicName" to arabicName,
-                "nativeScriptName" to nativeScriptName,
-                "additionalPersonalDetails" to additionalPersonalDetails,
-                "hasArabicName" to (arabicName != null),
-
-                // Additional Document Details from DG12
-                "additionalDocumentDetails" to additionalDocumentDetails,
-
-                // MRZ Info
-                "documentNumber" to mrzInfo?.documentNumber,
-                "documentCode" to mrzInfo?.getDocumentCode(),
-                "documentType" to mrzInfo?.documentType,
-                "issuingState" to mrzInfo?.getIssuingState(),
-                "firstName" to "${mrzInfo?.secondaryIdentifier}, ${arabicWords!![1]}",
-                "lastName" to "${mrzInfo?.primaryIdentifier}, ${arabicWords!![0]}",
-                "nationality" to mrzInfo?.nationality,
-                "dateOfBirth" to mrzInfo?.dateOfBirth,
-                "dateOfExpiry" to mrzInfo?.dateOfExpiry.toString(),
-                "gender" to mrzInfo?.gender.toString() + ", " + arabicWords!![3],
-                "personalNumber" to extractPersonalNumber(mrzInfo),
-                "opt1" to mrzInfo?.optionalData1,
-                "opt2" to mrzInfo?.optionalData2,
-                "fullMrz" to mrzInfo?.toString(),
-
-                // Images
-                "photo" to base64Photo,
-                "fingerPrintImages" to fingerPrintImages,
-                "iris" to irisBytes?.toList(),
-                "publicKey" to publicKey,
-                "securityInfos" to securityInfos,
-                /*
-
-                * */
-                // Raw DGs
-                "digestAlgorithm" to digestAlgorithm,
-                "digestAlgorithmSignerInfo" to digestAlgorithmSignerInfo,
-                "ldsVersion" to ldsVersion,
-                "unicodeVersion" to unicodeVersion,
-                "tagsList" to tagsList,
-                "docSigningCert" to docSigningCert,
-                "availableDGs" to availableDGs,
-
-                "dg14Info" to dg14Info,
-                "dg15Info" to dg15Info,
-                "images" to images,
-
-                //SOD Info
-                "signatureAlgorithm" to signatureAlgorithm,
-                "signerCert" to signerCert,
-                "digestAlgorithm" to digestAlgorithm,
-                "validFrom" to validFrom,
-                "validTo" to validTo,
-                "serialNumber" to serialNumber,
-                "issuer" to issuer,
-                "subject" to subject,
-
-                "isVerified" to true
+                "com" to com,
+                "sod" to sod,
+                "dg1" to dg1,
+                "dg2" to dg2,
+                "dg7" to dg7,
+                "dg11" to dg11,
+                "dg12" to dg12,
+                "dg15" to dg15
             )
+
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("READ_PASSPORT", "Error: ${e.message}")
             return mapOf("error" to e.message, "isVerified" to false)
         } finally {
             isoDep.close()
