@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:ekyc/ekyc.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,6 +31,34 @@ class _HomeScreenState extends State<HomeScreen> {
         _timeout = false;
       });
     });
+  }
+
+  Future<String?> convertJp2Base64ToJpegBase64(String jp2Base64) async {
+    try {
+      final bytes = base64Decode(jp2Base64);
+      final tempDir = await getTemporaryDirectory();
+
+      final jp2Path = '${tempDir.path}/input.jp2';
+      final jpgPath = '${tempDir.path}/output.jpg';
+
+      final jp2File = File(jp2Path);
+      await jp2File.writeAsBytes(bytes);
+
+      // Run ffmpeg to convert JP2 → JPG
+      final session = await FFmpegKit.execute('-i $jp2Path $jpgPath');
+      final returnCode = await session.getReturnCode();
+
+      if (returnCode?.isValueSuccess() == true) {
+        final jpgBytes = await File(jpgPath).readAsBytes();
+        return base64Encode(jpgBytes);
+      } else {
+        print('FFmpeg conversion failed');
+        return null;
+      }
+    } catch (e) {
+      print('Conversion error: $e');
+      return null;
+    }
   }
 
   void _startScan() {
@@ -60,27 +91,39 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPhoto() {
-    final photo = _result?['dg2']["photo"];
-    if (photo != null && photo.isNotEmpty) {
-      return Column(
-        children: [
-          Container(
-            width: 160,
-            height: 200,
-            // decoration: BoxDecoration(
-            //   shape: BoxShape.circle,
-            //   border: Border.all(color: Colors.grey, width: 2),
-            // ),
-            child: Image.memory(Uint8List.fromList(base64Decode(_result!['dg2']["photo"])), fit: BoxFit.cover,),
-          ),
+    final jp2Base64 = _result?['dg2']["photo"];
 
-        ],
-      );
-    }
-    return const CircleAvatar(
-      radius: 60,
-      backgroundColor: Colors.grey,
-      child: Icon(Icons.person, size: 50),
+    final pic = convertJp2Base64ToJpegBase64(jp2Base64).then((jpegBase64) {
+      if (jpegBase64 != null) {
+        return  Column(
+          children: [
+            Container(
+              width: 160,
+              height: 200,
+              // decoration: BoxDecoration(
+              //   shape: BoxShape.circle,
+              //   border: Border.all(color: Colors.grey, width: 2),
+              // ),
+              child: Image.memory(base64Decode(jpegBase64)),
+            ),
+
+          ],
+        );
+        }
+    });
+    return Column(
+      children: [
+        Container(
+          width: 160,
+          height: 200,
+          // decoration: BoxDecoration(
+          //   shape: BoxShape.circle,
+          //   border: Border.all(color: Colors.grey, width: 2),
+          // ),
+          child: Image.memory(Uint8List.fromList(base64Decode((_result?['dg2']["photo"]))), fit: BoxFit.cover,),
+        ),
+
+      ],
     );
   }
 
@@ -149,7 +192,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _buildResultCard("Nationality", _result!['dg1']["nationality"]),
         _buildResultCard("Date of Birth", _result!["dg11"]["fullDateOfBirth"]),
         _buildResultCard("Place of Birth", _result!["dg11"]["placeOfBirth"]),
-        _buildResultCard("Custodian", _result!["dg11"]["custodian"]),
+    if(_result!["dg11"]["custodian"] == null || _result!["dg11"]["custodian"] == "" ) _buildResultCard("Custodian", _result!["dg11"]["custodyInformation"]) else _buildResultCard("Custodian", _result!["dg11"]["custodian"]),
         _buildResultCard("National Identification Number", _result!["dg11"]["personalNumber"]),
         const SizedBox(height: 20,),
         Divider(thickness: 1, color: Colors.grey[300]),

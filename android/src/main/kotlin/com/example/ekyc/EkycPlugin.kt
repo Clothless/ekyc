@@ -188,6 +188,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                         }
                     }
                 }
+
                 MRZInfo.DOC_TYPE_ID3 -> {
                     // Passports - personal number might be in line 2, positions 28-42
                     val lines = fullMrz.split("\n")
@@ -342,7 +343,10 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
                         if (isArabicText(arabicText)) {
                             utf8Attempts.add("CP1256 Offset $offset, Length $length: '$arabicText'")
-                            Log.d("MANUAL_windows-1256_PARSE", "Found potential Arabic (CP1256) at offset $offset: '$arabicText'")
+                            Log.d(
+                                "MANUAL_windows-1256_PARSE",
+                                "Found potential Arabic (CP1256) at offset $offset: '$arabicText'"
+                            )
                         }
                     } catch (e: Exception) {
                         // Continue
@@ -457,7 +461,8 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 "Valid from" to (sodFile.getDocSigningCertificate() as X509Certificate).getNotBefore().toString(),
                 "Valid until" to (sodFile.getDocSigningCertificate() as X509Certificate).getNotAfter().toString(),
                 "Public Key" to (sodFile.getDocSigningCertificate() as X509Certificate).getPublicKey().toString(),
-                "Signature algorithm" to (sodFile.getDocSigningCertificate() as X509Certificate).getSigAlgName().toString(),
+                "Signature algorithm" to (sodFile.getDocSigningCertificate() as X509Certificate).getSigAlgName()
+                    .toString(),
                 "full" to (sodFile.getDocSigningCertificate() as X509Certificate).toString(),
                 "digestAlgorithm" to digestAlgorithm,
                 "digestAlgorithmSignerInfo" to digestAlgorithmSignerInfo,
@@ -485,6 +490,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             val dg1Bytes = passportService?.getInputStream(PassportService.EF_DG1)?.readBytes()
             val dg1File = dg1Bytes?.let { DG1File(ByteArrayInputStream(it)) }
             val mrzInfo = dg1File?.mrzInfo
+            Log.d("DG1Bytes", "BytesArray: ${dg1Bytes.toString()}")
 
             mapOf(
                 "documentNumber" to mrzInfo?.documentNumber,
@@ -529,18 +535,25 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 ?.faceImageInfos?.firstOrNull()
                 ?.imageInputStream?.readBytes()
 
-            val base64Photo = photoBytes?.let {
-                Base64.encodeToString(it, Base64.NO_WRAP)
-            }
+            var base64Photo: String? = null
+            var isJpeg = false
 
+            if (photoBytes != null && photoBytes.size >= 2) {
+                isJpeg = photoBytes[0] == 0xFF.toByte() && photoBytes[1] == 0xD8.toByte()
+                base64Photo = Base64.encodeToString(photoBytes, Base64.NO_WRAP)
+            }
 
             mapOf(
                 "photo" to base64Photo,
+                "isJpeg" to isJpeg,
+                "rawBytes" to if (!isJpeg) photoBytes else null // optionally return raw if not jpeg
             )
         } catch (e: Exception) {
             Log.e("READ_DG1", "Failed: ${e.message}")
             mapOf(
-                "photo" to "",
+                "photo" to null,
+                "isJpeg" to false,
+                "error" to e.message
             )
         }
     }
@@ -557,6 +570,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 Base64.encodeToString(bytes, Base64.NO_WRAP)
             }
             val images = base64Signatures
+            Log.d("DG7Bytes", "BytesArray: ${dg7Bytes.toString()}")
 
             mapOf(
                 "images" to images,
@@ -575,20 +589,22 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             val dg11File = dg11Bytes?.let { DG11File(ByteArrayInputStream(it)) }
 
             val arabicWords = dg11Bytes?.let { getArabic(it) }
-            val address = getArabic(dg11File?.permanentAddress[1]?.toByteArray()!!)
+            val address = dg11File?.getPermanentAddress()
+
+            Log.d("DG11Bytes", "BytesArray: ${dg11Bytes}")
 
             mapOf(
-                "full" to dg11File?.permanentAddress.toString(),
-                "arabicName" to "${arabicWords!![0]} ${arabicWords!![1]}",
-                "nameOfHolder" to arabicWords!![1],
+                "full" to arabicWords?.joinToString(" "),
+                "arabicName" to if (arabicWords!!.size > 1) "${arabicWords!![0]} ${arabicWords!![1]}" else "",
+                "nameOfHolder" to if (arabicWords.size > 1) arabicWords!![1] else "",
                 "nameOfHolderOriginal" to dg11File?.nameOfHolder,
                 "personalNumber" to dg11File?.personalNumber,
                 "fullDateOfBirth" to dg11File?.fullDateOfBirth,
-                "placeOfBirth" to "${dg11File?.placeOfBirth[0]}, ${arabicWords!![2]}",
-                "otherInfo" to if(arabicWords.size > 4) arabicWords!![4] else "--",
-                "permanentAddress" to dg11File?.permanentAddress.toString(),
-                "permanentAddress1" to address[0],
-                "custodian" to dg11File?.permanentAddress[2],
+                "placeOfBirth" to if (arabicWords.size > 2) "${dg11File?.placeOfBirth[0]}, ${arabicWords!![2]}" else dg11File?.placeOfBirth[0],
+                "otherInfo" to if (arabicWords.size > 4) arabicWords!![4] else "--",
+                "permanentAddress" to if (address.isNullOrEmpty()) "" else address.joinToString(", "),
+                "permanentAddress1" to address?.joinToString(" "),
+//                "custodian" to if(dg11File?.permanentAddress!!.isNullOrEmpty()) "" else if(dg11File.permanentAddress!!.size > 2) dg11File.permanentAddress?.joinToString(" ") else "",
                 "telephone" to dg11File?.telephone,
                 "profession" to dg11File?.profession,
                 "title" to dg11File?.title,
@@ -598,6 +614,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             )
         } catch (e: Exception) {
             Log.e("READ_DG11", "Failed: ${e.message}")
+            e.printStackTrace()
             mapOf(
                 "full" to "",
                 "arabicName" to "",
@@ -635,6 +652,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             val imageOfRear = dg12File.imageOfRear
             val personalizationTime = dg12File.dateAndTimeOfPersonalization
             val personalizationDeviceSerialNumber = dg12File.personalizationSystemSerialNumber
+            Log.d("DG12Bytes", "BytesArray: ${dg12Bytes.toString()}")
 
             mapOf(
                 "issuingAuthority" to issuingAuthority,
@@ -647,7 +665,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             )
 
         } catch (e: Exception) {
-            Log.e("READ_DG11", "Failed: ${e.message}")
+            Log.e("READ_DG12", "Failed: ${e.message}")
             mapOf(
                 "issuingAuthority" to "",
                 "dateOfIssue" to "",
@@ -687,7 +705,13 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
         try {
             val cardService = CardService.getInstance(isoDep)
-            passportService = PassportService(cardService, PassportService.NORMAL_MAX_TRANCEIVE_LENGTH, PassportService.DEFAULT_MAX_BLOCKSIZE, true, true)
+            passportService = PassportService(
+                cardService,
+                PassportService.NORMAL_MAX_TRANCEIVE_LENGTH,
+                PassportService.DEFAULT_MAX_BLOCKSIZE,
+                true,
+                true
+            )
             passportService?.open()
             passportService?.sendSelectApplet(false)
             passportService?.doBAC(bacKey)
