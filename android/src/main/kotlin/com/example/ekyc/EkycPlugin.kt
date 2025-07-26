@@ -95,7 +95,32 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             "initialize" -> initialize(result)
             "isNfcAvailable" -> isNfcAvailable(result)
             "readPassport" -> readPassport(call, result)
+            "readCOM" -> {
+                result.success(readCOM())
+            }
+            "readSOD" -> {
+                result.success(readSOD())
+            }
+            "readDG1" -> {
+                result.success(readDG1())
+            }
+            "readDG2" -> {
+                result.success(readDG2())
+            }
+            "readDG7" -> {
+                result.success(readDG7())
+            }
+            "readDG11" -> {
+                result.success(readDG11())
+            }
+            "readDG12" -> {
+                result.success(readDG12())
+            }
+            "readDG15" -> {
+                result.success(readDG15())
+            }
             "readDataGroups" -> readDataGroups(call, result)
+
             "verifyPassport" -> verifyPassport(result)
             else -> result.notImplemented()
         }
