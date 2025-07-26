@@ -421,7 +421,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         return filteredWords
     }
 
-    private fun readCOM(): Map<String, Any?> {
+    public fun readCOM(): Map<String, Any?> {
         return try {
             val dgcomBytes = passportService?.getInputStream(PassportService.EF_COM)?.readBytes()
             val dgcom = COMFile(ByteArrayInputStream(dgcomBytes))
@@ -444,7 +444,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         }
     }
 
-    private fun readSOD(): Map<String, Any?> {
+    public fun readSOD(): Map<String, Any?> {
         return try {
             val sodBytes = passportService?.getInputStream(PassportService.EF_SOD)?.readBytes()
             val sodFile = SODFile(ByteArrayInputStream(sodBytes))
@@ -485,7 +485,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         }
     }
 
-    private fun readDG1(): Map<String, Any?> {
+    public fun readDG1(): Map<String, Any?> {
         return try {
             val dg1Bytes = passportService?.getInputStream(PassportService.EF_DG1)?.readBytes()
             val dg1File = dg1Bytes?.let { DG1File(ByteArrayInputStream(it)) }
@@ -527,7 +527,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         }
     }
 
-    private fun readDG2(): Map<String, Any?> {
+    public fun readDG2(): Map<String, Any?> {
         return try {
             val dg2Bytes = passportService?.getInputStream(PassportService.EF_DG2)?.readBytes()
             val dg2File = dg2Bytes?.let { DG2File(ByteArrayInputStream(it)) }
@@ -558,7 +558,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         }
     }
 
-    private fun readDG7(): Map<String, Any?> {
+    public fun readDG7(): Map<String, Any?> {
         return try {
             val dg7Bytes = passportService?.getInputStream(PassportService.EF_DG7)?.readBytes()
             val dg7File = dg7Bytes?.let { DG7File(ByteArrayInputStream(it)) }
@@ -583,7 +583,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         }
     }
 
-    private fun readDG11(): Map<String, Any?> {
+    public fun readDG11(): Map<String, Any?> {
         return try {
             val dg11Bytes = passportService?.getInputStream(PassportService.EF_DG11)?.readBytes()
             val dg11File = dg11Bytes?.let { DG11File(ByteArrayInputStream(it)) }
@@ -638,7 +638,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         }
     }
 
-    private fun readDG12(): Map<String, Any?> {
+    public fun readDG12(): Map<String, Any?> {
         return try {
             val dg12Bytes = passportService?.getInputStream(PassportService.EF_DG12)?.readBytes()
             val dg12File = DG12File(ByteArrayInputStream(dg12Bytes))
@@ -678,7 +678,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         }
     }
 
-    private fun readDG15(): Map<String, Any?> {
+    public fun readDG15(): Map<String, Any?> {
         return try {
             val dg15Bytes = passportService?.getInputStream(PassportService.EF_DG15)?.readBytes()
             val dg15File = DG15File(ByteArrayInputStream(dg15Bytes))
