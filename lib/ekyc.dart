@@ -62,6 +62,90 @@ class Ekyc {
     }
   }
 
+  static Future<dynamic> readCOM() async {
+    try {
+      final result = await _methodChannel.invokeMethod('readCOM');
+      if (result == null) {
+        throw Exception('No response from platform for readCOM');
+      }
+      return result;
+    } catch (e) {
+      throw Exception('Failed to readCOM: $e');
+    }
+  }
+
+  static Future<dynamic> readSOD() async {
+    try {
+      final result = await _methodChannel.invokeMethod('readSOD');
+      if (result == null) {
+        throw Exception('No response from platform for readSOD');
+      }
+      return result;
+    } catch (e) {
+      throw Exception('Failed to readSOD: $e');
+    }
+  }
+
+  static Future<dynamic> readDG1() async {
+    try {
+      final result = await _methodChannel.invokeMethod('readDG1');
+      if (result == null) {
+        throw Exception('No response from platform for readDG1');
+      }
+      return result;
+    } catch (e) {
+      throw Exception('Failed to readDG1: $e');
+    }
+  }
+
+  static Future<dynamic> readDG2() async {
+    try {
+      final result = await _methodChannel.invokeMethod('readDG2');
+      if (result == null) {
+        throw Exception('No response from platform for readDG2');
+      }
+      return result;
+    } catch (e) {
+      throw Exception('Failed to readDG1: $e');
+    }
+  }
+
+  static Future<dynamic> readDG7() async {
+    try {
+      final result = await _methodChannel.invokeMethod('readDG7');
+      if (result == null) {
+        throw Exception('No response from platform for readDG7');
+      }
+      return result;
+    } catch (e) {
+      throw Exception('Failed to readDG7: $e');
+    }
+  }
+
+  static Future<dynamic> readDG11() async {
+    try {
+      final result = await _methodChannel.invokeMethod('readDG11');
+      if (result == null) {
+        throw Exception('No response from platform for readDG11');
+      }
+      return result;
+    } catch (e) {
+      throw Exception('Failed to readDG11: $e');
+    }
+  }
+
+  static Future<dynamic> readDG15() async {
+    try {
+      final result = await _methodChannel.invokeMethod('readDG15');
+      if (result == null) {
+        throw Exception('No response from platform for readDG15');
+      }
+      return result;
+    } catch (e) {
+      throw Exception('Failed to readDG15: $e');
+    }
+  }
+
   static DateTime _parseDate(String dateStr) {
     // Expects YYMMDD format
     int year = int.parse(dateStr.substring(0, 2));
