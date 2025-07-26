@@ -43,7 +43,7 @@ class Ekyc {
   static Future<String?> getPlatformVersion() async {
     try {
       final version =
-          await _methodChannel.invokeMethod<String>('getPlatformVersion');
+      await _methodChannel.invokeMethod<String>('getPlatformVersion');
       return version;
     } catch (e) {
       throw Exception('Failed to get platform version: $e');
@@ -79,36 +79,36 @@ class Ekyc {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
-  Future<Map<String, dynamic>?> startKycFlow({required BuildContext context}) async {
+  Future<Map<String, dynamic>?> startKycFlow({required BuildContext context, Map<String, String> mrzData}) async {
     var result;
 
     // 1. Show Document Type Dialog
-    final docType = await showDialog<DocumentType>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Select Document Type'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: const Text('ID Card / Residence Permit'),
-              onTap: () {
-                if (!context.mounted) return;
-                Navigator.of(context).pop(DocumentType.idCard);
-              },
-            ),
-            ListTile(
-              title: const Text('Passport'),
-              onTap: () {
-                if (!context.mounted) return;
-                Navigator.of(context).pop(DocumentType.passport);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-    if (docType == null) return null; // User cancelled
+    // final docType = await showDialog<DocumentType>(
+    //   context: context,
+    //   builder: (context) => AlertDialog(
+    //     title: const Text('Select Document Type'),
+    //     content: Column(
+    //       mainAxisSize: MainAxisSize.min,
+    //       children: [
+    //         ListTile(
+    //           title: const Text('ID Card / Residence Permit'),
+    //           onTap: () {
+    //             if (!context.mounted) return;
+    //             Navigator.of(context).pop(DocumentType.idCard);
+    //           },
+    //         ),
+    //         ListTile(
+    //           title: const Text('Passport'),
+    //           onTap: () {
+    //             if (!context.mounted) return;
+    //             Navigator.of(context).pop(DocumentType.passport);
+    //           },
+    //         ),
+    //       ],
+    //     ),
+    //   ),
+    // );
+    // if (docType == null) return null; // User cancelled
     // 1.5. Check NFC status before proceeding
     try {
       final nfcStatus = await Ekyc.checkNfc();
@@ -153,14 +153,14 @@ class Ekyc {
       return null;
     }
     // 2. Push MRZ Scanner
-    final mrzData = await Navigator.of(context).push<Map<String, String>>(
-      MaterialPageRoute(
-        builder: (context) => MrzScannerScreen(
-          documentType: docType,
-        ),
-      ),
-    );
-    if (mrzData == null) return null; // User cancelled scan
+    // final mrzData = await Navigator.of(context).push<Map<String, String>>(
+    //   MaterialPageRoute(
+    //     builder: (context) => MrzScannerScreen(
+    //       documentType: docType,
+    //     ),
+    //   ),
+    // );
+    // if (mrzData == null) return null; // User cancelled scan
     // 3. Trigger NFC read and return result
     try {
       await Ekyc.initialize();
