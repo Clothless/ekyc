@@ -79,7 +79,7 @@ class Ekyc {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
-  Future<Map<String, dynamic>?> startKycFlow({required BuildContext context, Map<String, String> mrzData}) async {
+  Future<Map<String, dynamic>?> startKycFlow({required BuildContext context, required Map<String, String> mrzData}) async {
     var result;
 
     // 1. Show Document Type Dialog
