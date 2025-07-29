@@ -765,7 +765,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
         } catch (e: Exception) {
             Log.e("READ_PASSPORT", "Error: ${e.message}")
-            return mapOf("error" to e.message, "isVerified" to false)
+            throw e
         } finally {
             isoDep.close()
         }
