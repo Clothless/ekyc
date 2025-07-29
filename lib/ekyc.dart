@@ -9,14 +9,21 @@ class Ekyc {
   static const MethodChannel _methodChannel = MethodChannel('ekyc');
 
   /// Listen for native passport scan result (from handleNfcIntent).
-  static void setOnPassportReadListener(Function(Map<String, dynamic>) onData) {
+  static void setOnPassportReadListener(
+      Function(Map<String, dynamic>) onData, {
+        Function(String error)? onError,
+      }) {
     _methodChannel.setMethodCallHandler((call) async {
       if (call.method == 'onPassportRead') {
         final data = Map<String, dynamic>.from(call.arguments);
         onData(data);
+      } else if (call.method == 'onPassportError') {
+        final errorMessage = call.arguments as String;
+        onError?.call(errorMessage);
       }
     });
   }
+
 
   /// Check if NFC is supported and enabled
   static Future<Map<String, dynamic>> checkNfc() async {
@@ -238,16 +245,6 @@ class Ekyc {
       );
       return null;
     }
-    // 2. Push MRZ Scanner
-    // final mrzData = await Navigator.of(context).push<Map<String, String>>(
-    //   MaterialPageRoute(
-    //     builder: (context) => MrzScannerScreen(
-    //       documentType: docType,
-    //     ),
-    //   ),
-    // );
-    // if (mrzData == null) return null; // User cancelled scan
-    // 3. Trigger NFC read and return result
     try {
       await Ekyc.initialize();
       await Ekyc.readPassport(

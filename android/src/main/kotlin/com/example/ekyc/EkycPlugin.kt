@@ -169,10 +169,13 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                     channel.invokeMethod("onPassportRead", data)
                 }
             } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    channel.invokeMethod("onPassportError", e.message ?: "Unknown error")
+                }
                 Log.d("HANDLE_NFC_INTENT", "Error reading passport: ${e.message}")
-                throw e
             }
         }
+
     }
 
     private fun extractPersonalNumber(mrzInfo: MRZInfo?): String? {
