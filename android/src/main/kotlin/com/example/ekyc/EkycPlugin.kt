@@ -169,7 +169,8 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                     channel.invokeMethod("onPassportRead", data)
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.d("HANDLE_NFC_INTENT", "Error reading passport: ${e.message}")
+                throw e
             }
         }
     }
