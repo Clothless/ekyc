@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'src/ui/mrz_scanner_screen.dart';
@@ -260,6 +262,7 @@ class Ekyc {
       // );
       return result; // Return the EkycResult directly
     } catch (e) {
+      log('Error reading passport: $e');
       rethrow;
     }
   }
