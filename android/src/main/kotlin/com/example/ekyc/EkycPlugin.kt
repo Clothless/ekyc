@@ -629,7 +629,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 "nameOfHolderOriginal" to dg11File?.nameOfHolder,
                 "personalNumber" to dg11File?.personalNumber,
                 "fullDateOfBirth" to dg11File?.fullDateOfBirth,
-                "placeOfBirth" to if (arabicWords.size > 2) "${dg11File?.placeOfBirth[0]}, ${arabicWords!![2]}" else dg11File?.placeOfBirth[0],
+                "placeOfBirth" to if (arabicWords.size > 2) "${dg11File?.placeOfBirth?.get(0)}, ${arabicWords!![2]}" else dg11File?.placeOfBirth?.get(0),
                 "otherInfo" to if (arabicWords.size > 4) arabicWords!![4] else "--",
                 "permanentAddress" to if (address.isNullOrEmpty()) "" else address.joinToString(", "),
                 "permanentAddress1" to address?.joinToString(" "),
