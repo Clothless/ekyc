@@ -7,10 +7,12 @@ public class EkycPlugin: NSObject, FlutterPlugin {
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(name: "ekyc", binaryMessenger: registrar.messenger())
+    let legacyChannel = FlutterMethodChannel(name: "passport_nfc", binaryMessenger: registrar.messenger())
     let instance = EkycPlugin()
     instance.channel = channel
     NFCService.shared.channel = channel
     registrar.addMethodCallDelegate(instance, channel: channel)
+    registrar.addMethodCallDelegate(instance, channel: legacyChannel)
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -36,7 +38,7 @@ public class EkycPlugin: NSObject, FlutterPlugin {
         dateOfExpiry: dateOfExpiry,
         result: result
       )
-    case "checkNfc":
+    case "checkNfc", "checkNFCSupport":
       #if targetEnvironment(simulator)
       result([
         "supported": false,
