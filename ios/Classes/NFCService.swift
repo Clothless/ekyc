@@ -163,7 +163,7 @@ class NFCService {
                     "dateOfExpiry": passportModel.documentExpiryDate,
                     "gender": passportModel.gender,
                     "mrz": passportModel.passportMRZ,
-                    "optionalData1": passportModel.optionalData
+//                     "optionalData1": passportModel.optionalData
                     // optionalData2: not exposed by this library — DG1 elements dict is private,
                     // and TD1/TD2 layouts don't carry a second free-text field distinct from tag 53 anyway.
                 ]
