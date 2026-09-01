@@ -75,7 +75,6 @@ class NFCService {
                 // Raw DG11 & DG12 helpers
                 let dg11Raw = passportModel.dataGroupsRead[.DG11] as? DataGroup11
                 let dg12Raw = passportModel.dataGroupsRead[.DG12] as? DataGroup12
-                let sodRaw = passportModel.dataGroupsRead[.SOD] as? SOD
 
                 data["profession"] = dg11Raw?.profession
                 data["title"] = dg11Raw?.title
@@ -132,16 +131,16 @@ class NFCService {
                     "correctlySigned": passportModel.passportCorrectlySigned,
                     "documentSigningCertVerified": passportModel.documentSigningCertificateVerified,
                     "dataNotTampered": passportModel.passportDataNotTampered,
-                    "digestAlgorithm": sodRaw?.digestAlgorithm ?? "",
-                    "digestAlgorithmSignerInfo": sodRaw?.digestAlgorithm ?? "",
-                    "serialNumber": sodRaw?.serialNumber ?? "",
-                    "signature": sodRaw?.signature ?? "",
-                    "Subject": sodRaw?.subject ?? "",
-                    "issuer": sodRaw?.issuer ?? "",
-                    "Valid from": sodRaw?.validFrom ?? "",
-                    "Valid until": sodRaw?.validUntil ?? "",
+                    "digestAlgorithm": "",
+                    "digestAlgorithmSignerInfo": "",
+                    "serialNumber": "",
+                    "signature": "",
+                    "Subject": "",
+                    "issuer": "",
+                    "Valid from": "",
+                    "Valid until": "",
                     "Public Key": "",
-                    "Signature algorithm": sodRaw?.signatureAlgorithm ?? "",
+                    "Signature algorithm": "",
                     "full": ""
                 ]
 
