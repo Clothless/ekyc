@@ -7,57 +7,15 @@ import NFCPassportReader
 import CoreNFC
 import Foundation
 
-
 // MARK: - NFC Service
 class NFCService {
 
     static let shared = NFCService()
     private var passportReader: PassportReader?
+    var channel: FlutterMethodChannel?
     var lastPassportData: [String: Any]?
 
     private init() {}
-
-    // Setup method channel - call this from AppDelegate
-    func setupMethodChannel(with binaryMessenger: FlutterBinaryMessenger) {
-        let passportChannel = FlutterMethodChannel(
-            name: "passport_nfc",
-            binaryMessenger: binaryMessenger
-        )
-
-        passportChannel.setMethodCallHandler { [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) in
-            guard let self = self else { return }
-
-            if call.method == "readPassport" {
-                guard let args = call.arguments as? [String: String],
-                      let passportNumber = args["passportNumber"],
-                      let dateOfBirth = args["dateOfBirth"],
-                      let dateOfExpiry = args["dateOfExpiry"] else {
-                    result(FlutterError(code: "INVALID_ARGS", message: "Missing MRZ fields", details: nil))
-                    return
-                }
-                self.readPassport(
-                    passportNumber: passportNumber,
-                    dateOfBirth: dateOfBirth,
-                    dateOfExpiry: dateOfExpiry,
-                    result: result
-                )
-            } else if call.method == "checkNFCSupport" {
-                self.checkNFCSupport(result: result)
-            } else {
-                result(FlutterMethodNotImplemented)
-            }
-        }
-    }
-
-    // Check if device supports NFC
-    private func checkNFCSupport(result: @escaping FlutterResult) {
-        if #available(iOS 13.0, *) {
-            let isSupported = NFCNDEFReaderSession.readingAvailable
-            result(["supported": isSupported])
-        } else {
-            result(["supported": false, "error": "iOS 13+ required for NFC"])
-        }
-    }
 
     @available(iOS 13, *)
     func readPassport(
@@ -83,7 +41,7 @@ class NFCService {
                     tags: [.DG1, .DG2, .DG3, .DG4, .DG5, .DG6, .DG7, .DG11, .DG12, .DG13, .DG14, .DG15, .DG16, .COM, .SOD],
                     skipSecureElements: true,
                     skipCA: true,
-                    skipPACE: true,
+                    skipPACE: false,
                     useExtendedMode: false,
                     customDisplayMessage: { displayMessage in
                         return displayMessage.description
@@ -91,29 +49,46 @@ class NFCService {
                 )
 
                 var data: [String: Any] = [:]
+
+                // Top-level fields (matches Android EkycPlugin)
                 data["firstName"] = passportModel.firstName
                 data["lastName"] = passportModel.lastName
                 data["documentNumber"] = passportModel.documentNumber
+                data["documentCode"] = passportModel.documentType
                 data["documentType"] = passportModel.documentType
                 data["documentSubType"] = passportModel.documentSubType
                 data["birthDate"] = passportModel.dateOfBirth
                 data["expiryDate"] = passportModel.documentExpiryDate
                 data["nationality"] = passportModel.nationality
                 data["sex"] = passportModel.gender
+                data["gender"] = passportModel.gender
                 data["issuingState"] = passportModel.issuingAuthority
+                data["issuingCountry"] = passportModel.issuingAuthority
                 data["NIN"] = passportModel.personalNumber
-                data["mrz"] = passportModel.passportMRZ
-
+                data["personalNumber"] = passportModel.personalNumber
                 data["placeOfBirth"] = passportModel.placeOfBirth
                 data["residenceAddress"] = passportModel.residenceAddress
                 data["telephone"] = passportModel.phoneNumber
+                data["mrz"] = passportModel.passportMRZ
+                data["fullMrz"] = passportModel.passportMRZ
+
+                // Raw DG11 & DG12 helpers
+                let dg11Raw = passportModel.dataGroupsRead[.DG11] as? DataGroup11
+                let dg12Raw = passportModel.dataGroupsRead[.DG12] as? DataGroup12
+                let sodRaw = passportModel.dataGroupsRead[.SOD] as? SOD
+
+                data["profession"] = dg11Raw?.profession
+                data["title"] = dg11Raw?.title
+                data["personalSummary"] = dg11Raw?.personalSummary
+                data["custodyInformation"] = dg11Raw?.custodyInfo
 
                 // COM
                 data["ldsVersion"] = passportModel.LDSVersion
+                data["unicodeVersion"] = passportModel.unicodeVersion
                 data["dataGroupsPresent"] = passportModel.dataGroupsPresent
                 data["dataGroupsAvailable"] = passportModel.dataGroupsAvailable.map { $0.getName() }
 
-                // Images
+                // Images (Base64)
                 var photoStr: String? = nil
                 var sigStr: String? = nil
                 if let image = passportModel.passportImage,
@@ -126,54 +101,80 @@ class NFCService {
                     sigStr = imageData.base64EncodedString()
                     data["signatureBase64"] = sigStr
                 }
+                data["frontImageBase64"] = nil
+                data["rearImageBase64"] = nil
 
-                // Auth / verification status
+                // Auth / Verification status
+                data["verified"] = passportModel.documentSigningCertificateVerified
+                data["notTampered"] = passportModel.passportDataNotTampered
+                data["passportCorrectlySigned"] = passportModel.passportCorrectlySigned
+                data["documentSigningCertificateVerified"] = passportModel.documentSigningCertificateVerified
+                data["activeAuthenticationPassed"] = passportModel.activeAuthenticationPassed
+                data["activeAuthenticationSupported"] = passportModel.activeAuthenticationSupported
+                data["chipAuthenticationSupported"] = passportModel.isChipAuthenticationSupported
+                data["isPACESupported"] = passportModel.isPACESupported
+                data["isChipAuthenticationSupported"] = passportModel.isChipAuthenticationSupported
                 data["BACStatus"] = String(describing: passportModel.BACStatus)
                 data["PACEStatus"] = String(describing: passportModel.PACEStatus)
                 data["chipAuthenticationStatus"] = String(describing: passportModel.chipAuthenticationStatus)
-                data["isPACESupported"] = passportModel.isPACESupported
-                data["isChipAuthenticationSupported"] = passportModel.isChipAuthenticationSupported
-                data["activeAuthenticationSupported"] = passportModel.activeAuthenticationSupported
-                data["activeAuthenticationPassed"] = passportModel.activeAuthenticationPassed
-                data["passportCorrectlySigned"] = passportModel.passportCorrectlySigned
-                data["documentSigningCertificateVerified"] = passportModel.documentSigningCertificateVerified
-                data["passportDataNotTampered"] = passportModel.passportDataNotTampered
-                data["verified"] = passportModel.documentSigningCertificateVerified
-                data["notTampered"] = passportModel.passportDataNotTampered
                 data["verificationErrors"] = passportModel.verificationErrors.map { "\($0)" }
 
-                // Raw DG11 (NFCPassportModel only surfaces a subset — pull the rest directly)
-                let dg11Raw = passportModel.dataGroupsRead[.DG11] as? DataGroup11
+                // DG-mapped structures (mirrors Android jmrtd format)
+                data["com"] = [
+                    "ldsVersion": passportModel.LDSVersion,
+                    "unicodeVersion": passportModel.unicodeVersion,
+                    "tagsList": passportModel.dataGroupsPresent,
+                    "dataGroupsPresent": passportModel.dataGroupsPresent,
+                    "dataGroupsAvailable": passportModel.dataGroupsAvailable.map { $0.getName() }
+                ]
 
-                // Raw DG12 — NFCPassportModel exposes NO DG12 accessors at all, must read the datagroup directly
-                let dg12Raw = passportModel.dataGroupsRead[.DG12] as? DataGroup12
+                data["sod"] = [
+                    "correctlySigned": passportModel.passportCorrectlySigned,
+                    "documentSigningCertVerified": passportModel.documentSigningCertificateVerified,
+                    "dataNotTampered": passportModel.passportDataNotTampered,
+                    "digestAlgorithm": sodRaw?.digestAlgorithm ?? "",
+                    "digestAlgorithmSignerInfo": sodRaw?.digestAlgorithm ?? "",
+                    "serialNumber": sodRaw?.serialNumber ?? "",
+                    "signature": sodRaw?.signature ?? "",
+                    "Subject": sodRaw?.subject ?? "",
+                    "issuer": sodRaw?.issuer ?? "",
+                    "Valid from": sodRaw?.validFrom ?? "",
+                    "Valid until": sodRaw?.validUntil ?? "",
+                    "Public Key": "",
+                    "Signature algorithm": sodRaw?.signatureAlgorithm ?? "",
+                    "full": ""
+                ]
 
-                // DG-mapped structure (mirrors your Android/jmrtd shape)
                 data["dg1"] = [
                     "firstName": passportModel.firstName,
                     "lastName": passportModel.lastName,
                     "documentNumber": passportModel.documentNumber,
-                    "documentCode": passportModel.documentType,       // ICAO doc code char, e.g. "P" / "I"
+                    "documentCode": passportModel.documentType,
                     "documentType": passportModel.documentType,
                     "documentSubType": passportModel.documentSubType,
                     "issuingState": passportModel.issuingAuthority,
-                    "issuingCountry": passportModel.issuingAuthority, // Dart reads this key name — keep both
+                    "issuingCountry": passportModel.issuingAuthority,
                     "nationality": passportModel.nationality,
                     "dateOfBirth": passportModel.dateOfBirth,
                     "dateOfExpiry": passportModel.documentExpiryDate,
                     "gender": passportModel.gender,
+                    "opt1": passportModel.personalNumber as Any,
+                    "opt2": "",
                     "mrz": passportModel.passportMRZ,
-//                     "optionalData1": passportModel.optionalData
-                    // optionalData2: not exposed by this library — DG1 elements dict is private,
-                    // and TD1/TD2 layouts don't carry a second free-text field distinct from tag 53 anyway.
+                    "fullMrz": passportModel.passportMRZ
                 ]
+
                 data["dg2"] = [
                     "photo": photoStr as Any,
-                    "isJpeg": true
+                    "isJpeg": true,
+                    "rawBytes": nil
                 ]
+
                 data["dg7"] = [
                     "images": [sigStr].compactMap { $0 }
                 ]
+
+                let fullName = dg11Raw?.fullName ?? [passportModel.firstName, passportModel.lastName].filter { !$0.isEmpty }.joined(separator: " ")
                 data["dg11"] = [
                     "nameOfHolder": dg11Raw?.fullName ?? passportModel.firstName + " " + passportModel.lastName,
                     // arabicName / fullNameArabic / nameOfHolderOriginal / otherInfo: this library's
@@ -185,36 +186,45 @@ class NFCService {
                     "placeOfBirth": passportModel.placeOfBirth as Any,
                     "personalNumber": passportModel.personalNumber as Any,
                     "permanentAddress": passportModel.residenceAddress as Any,
+                    "permanentAddress1": passportModel.residenceAddress as Any,
                     "telephone": passportModel.phoneNumber as Any,
                     "profession": dg11Raw?.profession as Any,
                     "title": dg11Raw?.title as Any,
                     "personalSummary": dg11Raw?.personalSummary as Any,
                     "custodyInformation": dg11Raw?.custodyInfo as Any
                 ]
+
                 data["dg12"] = [
                     "issuingAuthority": dg12Raw?.issuingAuthority as Any,
                     "dateOfIssue": dg12Raw?.dateOfIssue as Any,
-                    "endorsementsObservations": dg12Raw?.endorsementsOrObservations as Any,
                     "otherPersons": dg12Raw?.otherPersonsDetails as Any,
+                    "endorsementsObservations": dg12Raw?.endorsementsOrObservations as Any,
                     "taxExitRequirements": dg12Raw?.taxOrExitRequirements as Any,
                     "personalizationTime": dg12Raw?.personalizationTime as Any,
-                    "personalizationDeviceSerialNumber": dg12Raw?.personalizationDeviceSerialNr as Any
+                    "personalizationDeviceSerialNumber": dg12Raw?.personalizationDeviceSerialNr as Any,
+                    "imageOfFront": nil,
+                    "imageOfRear": nil
                 ]
+
                 data["dg14"] = [
                     "chipAuthenticationSupported": passportModel.isChipAuthenticationSupported,
                     "paceSupported": passportModel.isPACESupported
                 ]
+
                 data["dg15"] = [
-                    "activeAuthenticationSupported": passportModel.activeAuthenticationSupported
-                ]
-                data["sod"] = [
-                    "correctlySigned": passportModel.passportCorrectlySigned,
-                    "documentSigningCertVerified": passportModel.documentSigningCertificateVerified,
-                    "dataNotTampered": passportModel.passportDataNotTampered
+                    "activeAuthenticationSupported": passportModel.activeAuthenticationSupported,
+                    "algorithm": "",
+                    "format": "",
+                    "encoded": ""
                 ]
 
                 self.lastPassportData = data
+
+                // Return via method channel Future
                 result(data)
+
+                // Also notify registered listener (exact same way as Android)
+                self.channel?.invokeMethod("onPassportRead", arguments: data)
 
             } catch let error as NFCPassportReaderError {
                 print("❌ NFC Passport Reader Error: \(error)")
@@ -224,13 +234,16 @@ class NFCService {
                     message: errorMessage,
                     details: error.localizedDescription
                 ))
+                self.channel?.invokeMethod("onPassportError", arguments: errorMessage)
             } catch {
                 print("❌ General Error: \(error)")
+                let errorMessage = error.localizedDescription
                 result(FlutterError(
                     code: "NFC_ERROR",
-                    message: error.localizedDescription,
+                    message: errorMessage,
                     details: nil
                 ))
+                self.channel?.invokeMethod("onPassportError", arguments: errorMessage)
             }
         }
     }

@@ -5,8 +5,8 @@ struct MRZUtils {
 
     static func buildBACKey(passportNumber: String, dateOfBirth: String, dateOfExpiry: String) -> String {
         let cleanPassportNumber = passportNumber.replacingOccurrences(of: " ", with: "").uppercased()
-        let cleanDOB = dateOfBirth.replacingOccurrences(of: " ", with: "")
-        let cleanDOE = dateOfExpiry.replacingOccurrences(of: " ", with: "")
+        let cleanDOB = formatDateForMRZ(dateOfBirth.replacingOccurrences(of: " ", with: ""))
+        let cleanDOE = formatDateForMRZ(dateOfExpiry.replacingOccurrences(of: " ", with: ""))
 
         let paddedPassportNumber = padWithFillChars(cleanPassportNumber, targetLength: 9)
 
@@ -49,15 +49,27 @@ struct MRZUtils {
     }
 
     static func formatDateForMRZ(_ dateString: String) -> String {
-        let cleanDate = dateString.replacingOccurrences(of: "/", with: "").replacingOccurrences(of: "-", with: "")
+        let cleanDate = dateString.replacingOccurrences(of: "/", with: "")
+            .replacingOccurrences(of: "-", with: "")
+            .replacingOccurrences(of: ".", with: "")
 
         if cleanDate.count == 6 {
             return cleanDate
         } else if cleanDate.count == 8 {
-            let day = String(cleanDate.prefix(2))
-            let month = String(cleanDate.dropFirst(2).prefix(2))
-            let year = String(cleanDate.suffix(4).suffix(2))
-            return year + month + day
+            let prefix2 = cleanDate.prefix(2)
+            // If starts with 19 or 20, it's YYYYMMDD
+            if prefix2 == "19" || prefix2 == "20" {
+                let year = String(cleanDate.prefix(4).suffix(2))
+                let month = String(cleanDate.dropFirst(4).prefix(2))
+                let day = String(cleanDate.suffix(2))
+                return year + month + day
+            } else {
+                // Assume DDMMYYYY
+                let day = String(cleanDate.prefix(2))
+                let month = String(cleanDate.dropFirst(2).prefix(2))
+                let year = String(cleanDate.suffix(4).suffix(2))
+                return year + month + day
+            }
         }
 
         return cleanDate

@@ -98,6 +98,16 @@ class Ekyc {
     return await _methodChannel.invokeMethod('readDG11');
   }
 
+  /// Read Data Group 12 (Additional Document Details)
+  static Future<dynamic> readDG12() async {
+    return await _methodChannel.invokeMethod('readDG12');
+  }
+
+  /// Read Data Group 14 (Chip Authentication & PACE Info)
+  static Future<dynamic> readDG14() async {
+    return await _methodChannel.invokeMethod('readDG14');
+  }
+
   /// Read Data Group 15 (Active Authentication Public Key)
   static Future<dynamic> readDG15() async {
     return await _methodChannel.invokeMethod('readDG15');
