@@ -91,111 +91,130 @@ class NFCService {
                 )
 
                 var data: [String: Any] = [:]
-                                data["firstName"] = passportModel.firstName
-                                data["lastName"] = passportModel.lastName
-                                data["documentNumber"] = passportModel.documentNumber
-                                data["documentType"] = passportModel.documentType
-                                data["documentSubType"] = passportModel.documentSubType
-                                data["birthDate"] = passportModel.dateOfBirth
-                                data["expiryDate"] = passportModel.documentExpiryDate
-                                data["nationality"] = passportModel.nationality
-                                data["sex"] = passportModel.gender
-                                data["issuingState"] = passportModel.issuingAuthority
-                                data["NIN"] = passportModel.personalNumber
-                                data["mrz"] = passportModel.passportMRZ
+                data["firstName"] = passportModel.firstName
+                data["lastName"] = passportModel.lastName
+                data["documentNumber"] = passportModel.documentNumber
+                data["documentType"] = passportModel.documentType
+                data["documentSubType"] = passportModel.documentSubType
+                data["birthDate"] = passportModel.dateOfBirth
+                data["expiryDate"] = passportModel.documentExpiryDate
+                data["nationality"] = passportModel.nationality
+                data["sex"] = passportModel.gender
+                data["issuingState"] = passportModel.issuingAuthority
+                data["NIN"] = passportModel.personalNumber
+                data["mrz"] = passportModel.passportMRZ
 
-                                data["placeOfBirth"] = passportModel.placeOfBirth
-                                data["residenceAddress"] = passportModel.residenceAddress
-                                data["telephone"] = passportModel.phoneNumber
+                data["placeOfBirth"] = passportModel.placeOfBirth
+                data["residenceAddress"] = passportModel.residenceAddress
+                data["telephone"] = passportModel.phoneNumber
 
-                                // COM
-                                data["ldsVersion"] = passportModel.LDSVersion
-                                data["dataGroupsPresent"] = passportModel.dataGroupsPresent
-                                data["dataGroupsAvailable"] = passportModel.dataGroupsAvailable.map { $0.getName() }
+                // COM
+                data["ldsVersion"] = passportModel.LDSVersion
+                data["dataGroupsPresent"] = passportModel.dataGroupsPresent
+                data["dataGroupsAvailable"] = passportModel.dataGroupsAvailable.map { $0.getName() }
 
-                                // Images
-                                var photoStr: String? = nil
-                                var sigStr: String? = nil
-                                if let image = passportModel.passportImage,
-                                   let imageData = image.jpegData(compressionQuality: 0.8) {
-                                    photoStr = imageData.base64EncodedString()
-                                    data["photoBase64"] = photoStr
-                                }
-                                if let image = passportModel.signatureImage,
-                                   let imageData = image.jpegData(compressionQuality: 0.8) {
-                                    sigStr = imageData.base64EncodedString()
-                                    data["signatureBase64"] = sigStr
-                                }
+                // Images
+                var photoStr: String? = nil
+                var sigStr: String? = nil
+                if let image = passportModel.passportImage,
+                   let imageData = image.jpegData(compressionQuality: 0.8) {
+                    photoStr = imageData.base64EncodedString()
+                    data["photoBase64"] = photoStr
+                }
+                if let image = passportModel.signatureImage,
+                   let imageData = image.jpegData(compressionQuality: 0.8) {
+                    sigStr = imageData.base64EncodedString()
+                    data["signatureBase64"] = sigStr
+                }
 
-                                // Face image metadata (DG2)
-//                                if let faceInfo = passportModel.faceImageInfo {
-//                                    data["faceImageInfo"] = [
-//                                        "gender": faceInfo.gender ?? "",
-//                                        "eyeColor": faceInfo.eyeColor ?? "",
-//                                        "hairColor": faceInfo.hairColor ?? "",
-//                                        "expression": faceInfo.expression ?? "",
-//                                        "imageDataType": faceInfo.imageDataType ?? ""
-//                                    ]
-//                                }
+                // Auth / verification status
+                data["BACStatus"] = String(describing: passportModel.BACStatus)
+                data["PACEStatus"] = String(describing: passportModel.PACEStatus)
+                data["chipAuthenticationStatus"] = String(describing: passportModel.chipAuthenticationStatus)
+                data["isPACESupported"] = passportModel.isPACESupported
+                data["isChipAuthenticationSupported"] = passportModel.isChipAuthenticationSupported
+                data["activeAuthenticationSupported"] = passportModel.activeAuthenticationSupported
+                data["activeAuthenticationPassed"] = passportModel.activeAuthenticationPassed
+                data["passportCorrectlySigned"] = passportModel.passportCorrectlySigned
+                data["documentSigningCertificateVerified"] = passportModel.documentSigningCertificateVerified
+                data["passportDataNotTampered"] = passportModel.passportDataNotTampered
+                data["verified"] = passportModel.documentSigningCertificateVerified
+                data["notTampered"] = passportModel.passportDataNotTampered
+                data["verificationErrors"] = passportModel.verificationErrors.map { "\($0)" }
 
-                                // Auth / verification status
-                                data["BACStatus"] = String(describing: passportModel.BACStatus)
-                                data["PACEStatus"] = String(describing: passportModel.PACEStatus)
-                                data["chipAuthenticationStatus"] = String(describing: passportModel.chipAuthenticationStatus)
-                                data["isPACESupported"] = passportModel.isPACESupported
-                                data["isChipAuthenticationSupported"] = passportModel.isChipAuthenticationSupported
-                                data["activeAuthenticationSupported"] = passportModel.activeAuthenticationSupported
-                                data["activeAuthenticationPassed"] = passportModel.activeAuthenticationPassed
-                                data["passportCorrectlySigned"] = passportModel.passportCorrectlySigned
-                                data["documentSigningCertificateVerified"] = passportModel.documentSigningCertificateVerified
-                                data["passportDataNotTampered"] = passportModel.passportDataNotTampered
-                                data["verified"] = passportModel.documentSigningCertificateVerified
-                                data["notTampered"] = passportModel.passportDataNotTampered
-                                data["verificationErrors"] = passportModel.verificationErrors.map { "\($0)" }
+                // Raw DG11 (NFCPassportModel only surfaces a subset — pull the rest directly)
+                let dg11Raw = passportModel.dataGroupsRead[.DG11] as? DataGroup11
 
-                                // DG-mapped structure (mirrors your Android/jmrtd shape)
-                                data["dg1"] = [
-                                    "firstName": passportModel.firstName,
-                                    "lastName": passportModel.lastName,
-                                    "documentNumber": passportModel.documentNumber,
-                                    "documentType": passportModel.documentType,
-                                    "documentSubType": passportModel.documentSubType,
-                                    "issuingState": passportModel.issuingAuthority,
-                                    "nationality": passportModel.nationality,
-                                    "dateOfBirth": passportModel.dateOfBirth,
-                                    "dateOfExpiry": passportModel.documentExpiryDate,
-                                    "gender": passportModel.gender,
-                                    "mrz": passportModel.passportMRZ
-                                ]
-                                data["dg2"] = [
-                                    "photo": photoStr as Any,
-                                    "isJpeg": true
-                                ]
-                                data["dg7"] = [
-                                    "images": [sigStr].compactMap { $0 }
-                                ]
-                                data["dg11"] = [
-                                    "fullDateOfBirth": passportModel.dateOfBirth,
-                                    "placeOfBirth": passportModel.placeOfBirth as Any,
-                                    "personalNumber": passportModel.personalNumber as Any,
-                                    "permanentAddress": passportModel.residenceAddress as Any,
-                                    "telephone": passportModel.phoneNumber as Any
-                                ]
-                                data["dg14"] = [
-                                    "chipAuthenticationSupported": passportModel.isChipAuthenticationSupported,
-                                    "paceSupported": passportModel.isPACESupported
-                                ]
-                                data["dg15"] = [
-                                    "activeAuthenticationSupported": passportModel.activeAuthenticationSupported
-                                ]
-                                data["sod"] = [
-                                    "correctlySigned": passportModel.passportCorrectlySigned,
-                                    "documentSigningCertVerified": passportModel.documentSigningCertificateVerified,
-                                    "dataNotTampered": passportModel.passportDataNotTampered
-                                ]
+                // Raw DG12 — NFCPassportModel exposes NO DG12 accessors at all, must read the datagroup directly
+                let dg12Raw = passportModel.dataGroupsRead[.DG12] as? DataGroup12
 
-                                self.lastPassportData = data
-                                result(data)
+                // DG-mapped structure (mirrors your Android/jmrtd shape)
+                data["dg1"] = [
+                    "firstName": passportModel.firstName,
+                    "lastName": passportModel.lastName,
+                    "documentNumber": passportModel.documentNumber,
+                    "documentCode": passportModel.documentType,       // ICAO doc code char, e.g. "P" / "I"
+                    "documentType": passportModel.documentType,
+                    "documentSubType": passportModel.documentSubType,
+                    "issuingState": passportModel.issuingAuthority,
+                    "issuingCountry": passportModel.issuingAuthority, // Dart reads this key name — keep both
+                    "nationality": passportModel.nationality,
+                    "dateOfBirth": passportModel.dateOfBirth,
+                    "dateOfExpiry": passportModel.documentExpiryDate,
+                    "gender": passportModel.gender,
+                    "mrz": passportModel.passportMRZ,
+                    "optionalData1": passportModel.optionalData
+                    // optionalData2: not exposed by this library — DG1 elements dict is private,
+                    // and TD1/TD2 layouts don't carry a second free-text field distinct from tag 53 anyway.
+                ]
+                data["dg2"] = [
+                    "photo": photoStr as Any,
+                    "isJpeg": true
+                ]
+                data["dg7"] = [
+                    "images": [sigStr].compactMap { $0 }
+                ]
+                data["dg11"] = [
+                    "nameOfHolder": dg11Raw?.fullName ?? passportModel.firstName + " " + passportModel.lastName,
+                    // arabicName / fullNameArabic / nameOfHolderOriginal / otherInfo: this library's
+                    // DataGroup11.parse() does not capture any tag that maps to these — if your Algerian
+                    // ID cards carry an Arabic name in DG11, it's in a tag this parser currently drops.
+                    // Needs a custom DataGroup11 subclass/patch to capture the unhandled tag(s) before
+                    // these can be populated.
+                    "fullDateOfBirth": dg11Raw?.dateOfBirth ?? passportModel.dateOfBirth,
+                    "placeOfBirth": passportModel.placeOfBirth as Any,
+                    "personalNumber": passportModel.personalNumber as Any,
+                    "permanentAddress": passportModel.residenceAddress as Any,
+                    "telephone": passportModel.phoneNumber as Any,
+                    "profession": dg11Raw?.profession as Any,
+                    "title": dg11Raw?.title as Any,
+                    "personalSummary": dg11Raw?.personalSummary as Any,
+                    "custodyInformation": dg11Raw?.custodyInfo as Any
+                ]
+                data["dg12"] = [
+                    "issuingAuthority": dg12Raw?.issuingAuthority as Any,
+                    "dateOfIssue": dg12Raw?.dateOfIssue as Any,
+                    "endorsementsObservations": dg12Raw?.endorsementsOrObservations as Any,
+                    "otherPersons": dg12Raw?.otherPersonsDetails as Any,
+                    "taxExitRequirements": dg12Raw?.taxOrExitRequirements as Any,
+                    "personalizationTime": dg12Raw?.personalizationTime as Any,
+                    "personalizationDeviceSerialNumber": dg12Raw?.personalizationDeviceSerialNr as Any
+                ]
+                data["dg14"] = [
+                    "chipAuthenticationSupported": passportModel.isChipAuthenticationSupported,
+                    "paceSupported": passportModel.isPACESupported
+                ]
+                data["dg15"] = [
+                    "activeAuthenticationSupported": passportModel.activeAuthenticationSupported
+                ]
+                data["sod"] = [
+                    "correctlySigned": passportModel.passportCorrectlySigned,
+                    "documentSigningCertVerified": passportModel.documentSigningCertificateVerified,
+                    "dataNotTampered": passportModel.passportDataNotTampered
+                ]
+
+                self.lastPassportData = data
+                result(data)
 
             } catch let error as NFCPassportReaderError {
                 print("❌ NFC Passport Reader Error: \(error)")
