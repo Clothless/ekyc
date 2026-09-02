@@ -680,14 +680,12 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             val otherPersons = dg12File.namesOfOtherPersons
             val endorsementsObservations = dg12File.endorsementsAndObservations
             val taxExitRequirements = dg12File.taxOrExitRequirements
-            val imageOfFront = dg12File.imageOfFront
-            val imageOfRear = dg12File.imageOfRear
             val personalizationTime = dg12File.dateAndTimeOfPersonalization
             val personalizationDeviceSerialNumber = dg12File.personalizationSystemSerialNumber
-            Log.d("DG12Bytes", "BytesArray: ${dg12Bytes.toString()}")
 
-            val frontBytes = try { imageOfFront?.imageInputStream?.readBytes() } catch (e: Exception) { null }
-            val rearBytes = try { imageOfRear?.imageInputStream?.readBytes() } catch (e: Exception) { null }
+            // imageOfFront / imageOfRear are already raw byte[] in JMRTD's DG12File
+            val frontBytes: ByteArray? = dg12File.imageOfFront
+            val rearBytes: ByteArray? = dg12File.imageOfRear
             val base64Front = frontBytes?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
             val base64Rear = rearBytes?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
 
@@ -702,7 +700,6 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 "imageOfFront" to base64Front,
                 "imageOfRear" to base64Rear
             )
-
         } catch (e: Exception) {
             Log.e("READ_DG12", "Failed: ${e.message}")
             mapOf(
