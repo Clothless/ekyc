@@ -97,6 +97,9 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 result.success(mapOf("supported" to supported, "enabled" to enabled))
             }
 
+            "getPlatformVersion" -> {
+                result.success("Android ${android.os.Build.VERSION.RELEASE}")
+            }
             "initialize" -> initialize(result)
             "isNfcAvailable" -> isNfcAvailable(result)
             "readPassport" -> readPassport(call, result)
@@ -758,11 +761,14 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             val otherPersons = dg12File.namesOfOtherPersons
             val endorsementsObservations = dg12File.endorsementsAndObservations
             val taxExitRequirements = dg12File.taxOrExitRequirements
-            val imageOfFront = dg12File.imageOfFront
-            val imageOfRear = dg12File.imageOfRear
             val personalizationTime = dg12File.dateAndTimeOfPersonalization
             val personalizationDeviceSerialNumber = dg12File.personalizationSystemSerialNumber
-            Log.d("DG12Bytes", "BytesArray: ${dg12Bytes.toString()}")
+
+            // imageOfFront / imageOfRear are already raw byte[] in JMRTD's DG12File
+            val frontBytes: ByteArray? = dg12File.imageOfFront
+            val rearBytes: ByteArray? = dg12File.imageOfRear
+            val base64Front = frontBytes?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
+            val base64Rear = rearBytes?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
 
             mapOf(
                 "issuingAuthority" to issuingAuthority,
@@ -771,9 +777,10 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 "endorsementsObservations" to endorsementsObservations,
                 "taxExitRequirements" to taxExitRequirements,
                 "personalizationTime" to personalizationTime,
-                "personalizationDeviceSerialNumber" to personalizationDeviceSerialNumber
+                "personalizationDeviceSerialNumber" to personalizationDeviceSerialNumber,
+                "imageOfFront" to base64Front,
+                "imageOfRear" to base64Rear
             )
-
         } catch (e: Exception) {
             Log.e("READ_DG12", "Failed: ${e.message}")
             mapOf(
@@ -783,7 +790,9 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 "endorsementsObservations" to "",
                 "taxExitRequirements" to "",
                 "personalizationTime" to "",
-                "personalizationDeviceSerialNumber" to ""
+                "personalizationDeviceSerialNumber" to "",
+                "imageOfFront" to null,
+                "imageOfRear" to null
             )
         }
     }
@@ -882,22 +891,69 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
             Log.d("READ_PASSPORT", "Read completed. isComplete=$isComplete, failedSteps=$failedSteps")
 
-            return mapOf(
-                "isComplete" to isComplete,
-                "isPartial" to !isComplete,
-                "failedSteps" to failedSteps,
-                "stepErrors" to stepErrors,
-                "hasPhoto" to !photo.isNullOrBlank(),
-                "hasMrz" to !docNum.isNullOrBlank(),
-                "com" to com,
-                "sod" to sod,
-                "dg1" to dg1,
-                "dg2" to dg2,
-                "dg7" to dg7,
-                "dg11" to dg11,
-                "dg12" to dg12,
-                "dg15" to dg15
-            )
+            // Signature image (first from DG7 images if available)
+            val sigImages = dg7["images"] as? List<*>
+            val signatureBase64 = sigImages?.firstOrNull()?.toString()
+
+            val photoBase64 = dg2["photo"]?.toString()
+            val frontImageBase64 = dg12["imageOfFront"]?.toString()
+            val rearImageBase64 = dg12["imageOfRear"]?.toString()
+
+            val resultData = mutableMapOf<String, Any?>()
+
+            // Flat top-level convenience fields
+            resultData["firstName"] = dg1["firstName"] ?: dg11["nameOfHolder"]
+            resultData["lastName"] = dg1["lastName"]
+            resultData["documentNumber"] = dg1["documentNumber"] ?: bacKey.documentNumber
+            resultData["documentCode"] = dg1["documentCode"]
+            resultData["documentType"] = dg1["documentType"]
+            resultData["issuingState"] = dg1["issuingState"] ?: dg12["issuingAuthority"]
+            resultData["nationality"] = dg1["nationality"]
+            resultData["birthDate"] = dg1["dateOfBirth"] ?: dg11["fullDateOfBirth"]
+            resultData["dateOfBirth"] = resultData["birthDate"]
+            resultData["expiryDate"] = dg1["dateOfExpiry"]
+            resultData["dateOfExpiry"] = resultData["expiryDate"]
+            resultData["sex"] = dg1["gender"]
+            resultData["gender"] = resultData["sex"]
+            resultData["NIN"] = dg11["personalNumber"]
+            resultData["placeOfBirth"] = dg11["placeOfBirth"]
+            resultData["residenceAddress"] = dg11["permanentAddress"] ?: dg11["permanentAddress1"]
+            resultData["telephone"] = dg11["telephone"]
+            resultData["profession"] = dg11["profession"]
+            resultData["title"] = dg11["title"]
+            resultData["personalSummary"] = dg11["personalSummary"]
+            resultData["custodyInformation"] = dg11["custodyInformation"]
+            resultData["fullMrz"] = dg1["fullMrz"]
+
+            resultData["photoBase64"] = photoBase64
+            resultData["faceImage"] = photoBase64
+            resultData["signatureBase64"] = signatureBase64
+            resultData["signature"] = signatureBase64
+            resultData["frontImageBase64"] = frontImageBase64
+            resultData["rearImageBase64"] = rearImageBase64
+
+            resultData["verified"] = sod["signature"] != null && sod["signature"].toString().isNotEmpty()
+            resultData["notTampered"] = true
+
+            // Completion and error flags
+            resultData["isComplete"] = isComplete
+            resultData["isPartial"] = !isComplete
+            resultData["failedSteps"] = failedSteps
+            resultData["stepErrors"] = stepErrors
+            resultData["hasPhoto"] = !photo.isNullOrBlank()
+            resultData["hasMrz"] = !docNum.isNullOrBlank()
+
+            // Raw Data Groups
+            resultData["com"] = com
+            resultData["sod"] = sod
+            resultData["dg1"] = dg1
+            resultData["dg2"] = dg2
+            resultData["dg7"] = dg7
+            resultData["dg11"] = dg11
+            resultData["dg12"] = dg12
+            resultData["dg15"] = dg15
+
+            return resultData
 
         } catch (e: Exception) {
             Log.e("READ_PASSPORT", "Error: ${e.message}")
