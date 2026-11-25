@@ -88,12 +88,15 @@ class NFCService {
                     data["photoBase64"] = photoStr
                     data["faceImage"] = photoStr
                 }
+                data["hasPhoto"] = (photoStr != nil && !photoStr!.isEmpty) ? "Yes" : "No"
+
                 if let image = passportModel.signatureImage,
                    let imageData = image.jpegData(compressionQuality: 0.8) {
                     sigStr = imageData.base64EncodedString()
                     data["signatureBase64"] = sigStr
                     data["signature"] = sigStr
                 }
+                data["hasSignature"] = (sigStr != nil && !sigStr!.isEmpty) ? "Yes" : "No"
 
                 // Auth / verification status
                 data["BACStatus"] = String(describing: passportModel.BACStatus)
