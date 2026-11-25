@@ -827,35 +827,68 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             passportService?.sendSelectApplet(false)
             passportService?.doBAC(bacKey)
 
-            val com = readCOM()
-            val sod = readSOD()
-            val dg1 = readDG1()
-            val dg2 = readDG2()
+            val failedSteps = mutableListOf<String>()
+            val stepErrors = mutableMapOf<String, String>()
 
-            // Validate essential groups: if card was removed or read was incomplete, fail early
-            if (!isoDep.isConnected) {
-                throw java.io.IOException("Card connection lost before reading completed")
+            fun <T> safeRead(name: String, block: () -> T): T? {
+                return try {
+                    if (!isoDep.isConnected) {
+                        failedSteps.add(name)
+                        stepErrors[name] = "Card disconnected before step"
+                        null
+                    } else {
+                        block()
+                    }
+                } catch (e: Exception) {
+                    Log.e("READ_STEP", "Failed at step $name: ${e.message}")
+                    failedSteps.add(name)
+                    stepErrors[name] = e.message ?: "Read error"
+                    null
+                }
             }
+
+            val com = safeRead("COM") { readCOM() } ?: emptyMap()
+            val sod = safeRead("SOD") { readSOD() } ?: emptyMap()
+            val dg1 = safeRead("DG1") { readDG1() } ?: emptyMap()
+            val dg2 = safeRead("DG2") { readDG2() } ?: emptyMap()
+            val dg7 = safeRead("DG7") { readDG7() } ?: emptyMap()
+            val dg11 = safeRead("DG11") { readDG11() } ?: emptyMap()
+            val dg12 = safeRead("DG12") { readDG12() } ?: emptyMap()
+            val dg15 = safeRead("DG15") { readDG15() } ?: emptyMap()
+
+            // Verify content of essential groups in case errors were swallowed internally
             val docNum = dg1["documentNumber"] as? String
-            if (docNum.isNullOrBlank()) {
-                throw java.io.IOException("Incomplete read: failed to extract MRZ data (DG1)")
+            if (docNum.isNullOrBlank() && !failedSteps.contains("DG1")) {
+                failedSteps.add("DG1")
+                stepErrors["DG1"] = "MRZ data is empty"
             }
+
             val photo = dg2["photo"] as? String
-            if (photo.isNullOrBlank()) {
-                throw java.io.IOException("Incomplete read: failed to extract biometric photo (DG2)")
+            val dg2Err = dg2["error"] as? String
+            if (photo.isNullOrBlank() && !failedSteps.contains("DG2")) {
+                failedSteps.add("DG2")
+                stepErrors["DG2"] = dg2Err ?: "Biometric photo is empty"
             }
 
-            // Read additional groups if card is still attached
-            val dg7 = readDG7()
-            val dg11 = readDG11()
-            val dg12 = readDG12()
-            val dg15 = readDG15()
-
-            if (!isoDep.isConnected) {
-                throw java.io.IOException("Card was removed during reading")
+            if (!isoDep.isConnected && !failedSteps.contains("CARD_DISCONNECTED")) {
+                failedSteps.add("CARD_DISCONNECTED")
+                stepErrors["CARD_DISCONNECTED"] = "Card disconnected before reading finished"
             }
+
+            // Complete only if essential groups succeeded and card did not disconnect
+            val isComplete = !failedSteps.contains("DG1") && 
+                             !failedSteps.contains("DG2") && 
+                             !failedSteps.contains("CARD_DISCONNECTED")
+
+            Log.d("READ_PASSPORT", "Read completed. isComplete=$isComplete, failedSteps=$failedSteps")
 
             return mapOf(
+                "isComplete" to isComplete,
+                "isPartial" to !isComplete,
+                "failedSteps" to failedSteps,
+                "stepErrors" to stepErrors,
+                "hasPhoto" to !photo.isNullOrBlank(),
+                "hasMrz" to !docNum.isNullOrBlank(),
                 "com" to com,
                 "sod" to sod,
                 "dg1" to dg1,
