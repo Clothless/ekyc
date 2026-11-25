@@ -831,12 +831,29 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             val sod = readSOD()
             val dg1 = readDG1()
             val dg2 = readDG2()
+
+            // Validate essential groups: if card was removed or read was incomplete, fail early
+            if (!isoDep.isConnected) {
+                throw java.io.IOException("Card connection lost before reading completed")
+            }
+            val docNum = dg1["documentNumber"] as? String
+            if (docNum.isNullOrBlank()) {
+                throw java.io.IOException("Incomplete read: failed to extract MRZ data (DG1)")
+            }
+            val photo = dg2["photo"] as? String
+            if (photo.isNullOrBlank()) {
+                throw java.io.IOException("Incomplete read: failed to extract biometric photo (DG2)")
+            }
+
+            // Read additional groups if card is still attached
             val dg7 = readDG7()
             val dg11 = readDG11()
             val dg12 = readDG12()
             val dg15 = readDG15()
 
-            // You can continue calling other DG readers similarly
+            if (!isoDep.isConnected) {
+                throw java.io.IOException("Card was removed during reading")
+            }
 
             return mapOf(
                 "com" to com,
