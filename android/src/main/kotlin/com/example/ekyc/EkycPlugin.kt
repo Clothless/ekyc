@@ -6,6 +6,7 @@ import android.content.Intent
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.IsoDep
+import android.os.Bundle
 import android.util.Base64
 import android.util.Log
 import androidx.annotation.Keep
@@ -45,6 +46,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     private var nfcAdapter: NfcAdapter? = null
     private var passportService: PassportService? = null
     private var lastUsedBacKey: BACKey? = null
+    private var isReading = false
 
     companion object {
         init {
@@ -60,6 +62,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     }
 
     override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
+        disableReaderMode()
         channel.setMethodCallHandler(null)
         nfcAdapter = null
     }
@@ -73,6 +76,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     }
 
     override fun onDetachedFromActivity() {
+        disableReaderMode()
         activity = null
     }
 
@@ -81,6 +85,7 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     }
 
     override fun onDetachedFromActivityForConfigChanges() {
+        disableReaderMode()
         activity = null
     }
 
@@ -95,6 +100,11 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             "initialize" -> initialize(result)
             "isNfcAvailable" -> isNfcAvailable(result)
             "readPassport" -> readPassport(call, result)
+            "stopNfc" -> {
+                disableReaderMode()
+                synchronized(this) { isReading = false }
+                result.success(true)
+            }
             "readCOM" -> {
                 result.success(readCOM())
             }
@@ -146,36 +156,107 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
         Log.d("BAC", "doc: $documentNumber, dob: $dateOfBirth, doe: $dateOfExpiry")
 
-
         if (documentNumber != null && dateOfBirth != null && dateOfExpiry != null) {
             lastUsedBacKey = BACKey(documentNumber, dateOfBirth, dateOfExpiry)
-
-            // NFC intent will trigger handleNfcIntent and complete the read
+            synchronized(this) { isReading = false }
+            enableReaderMode()
             result.success("NFC scanning started. Hold your passport near the phone.")
         } else {
             result.error("INPUT_ERROR", "Missing one or more BAC fields", null)
         }
     }
 
-    private fun handleNfcIntent(intent: Intent) {
-        val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG) ?: return
-        val isoDep = IsoDep.get(tag) ?: return
+    private fun enableReaderMode() {
+        val act = activity ?: run {
+            Log.w("EkycPlugin", "Activity is null, cannot enable Reader Mode")
+            return
+        }
+        val adapter = nfcAdapter ?: run {
+            Log.w("EkycPlugin", "NfcAdapter is null")
+            return
+        }
+        if (!adapter.isEnabled) {
+            Log.w("EkycPlugin", "NFC is not enabled")
+            return
+        }
+
+        val flags = NfcAdapter.FLAG_READER_NFC_A or
+                NfcAdapter.FLAG_READER_NFC_B or
+                NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK
+
+        val options = Bundle().apply {
+            putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 250)
+        }
+
+        act.runOnUiThread {
+            try {
+                adapter.enableReaderMode(act, { tag ->
+                    processTag(tag)
+                }, flags, options)
+                Log.d("EkycPlugin", "✓ NFC Reader Mode enabled successfully (flags: $flags)")
+            } catch (e: Exception) {
+                Log.e("EkycPlugin", "Failed to enable reader mode: ${e.message}", e)
+            }
+        }
+    }
+
+    private fun disableReaderMode() {
+        val act = activity ?: return
+        val adapter = nfcAdapter ?: return
+        act.runOnUiThread {
+            try {
+                adapter.disableReaderMode(act)
+                Log.d("EkycPlugin", "✓ NFC Reader Mode disabled")
+            } catch (e: Exception) {
+                Log.e("EkycPlugin", "Failed to disable reader mode: ${e.message}")
+            }
+        }
+    }
+
+    private fun processTag(tag: Tag) {
+        val isoDep = IsoDep.get(tag)
+        if (isoDep == null) {
+            Log.d("EkycPlugin", "Discovered tag does not support IsoDep")
+            return
+        }
+
+        synchronized(this) {
+            if (isReading) {
+                Log.d("EkycPlugin", "Already reading passport, ignoring duplicate tag callback")
+                return
+            }
+            isReading = true
+        }
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val bacKey = lastUsedBacKey ?: return@launch
+                val bacKey = lastUsedBacKey
+                if (bacKey == null) {
+                    Log.e("EkycPlugin", "No BAC key available when tag discovered")
+                    synchronized(this@EkycPlugin) { isReading = false }
+                    return@launch
+                }
+
+                Log.d("EkycPlugin", "Starting passport read with IsoDep tag...")
                 val data = readActualPassport(tag, bacKey)
                 withContext(Dispatchers.Main) {
+                    disableReaderMode()
+                    synchronized(this@EkycPlugin) { isReading = false }
                     channel.invokeMethod("onPassportRead", data)
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
+                    synchronized(this@EkycPlugin) { isReading = false }
                     channel.invokeMethod("onPassportError", e.message ?: "Unknown error")
                 }
                 Log.d("HANDLE_NFC_INTENT", "Error reading passport: ${e.message}")
             }
         }
+    }
 
+    private fun handleNfcIntent(intent: Intent) {
+        val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG) ?: return
+        processTag(tag)
     }
 
     private fun extractPersonalNumber(mrzInfo: MRZInfo?): String? {
@@ -729,7 +810,8 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
 
     private fun readActualPassport(tag: Tag, bacKey: BACKey): Map<String, Any?> {
-        val isoDep = IsoDep.get(tag)
+        val isoDep = IsoDep.get(tag) ?: throw IllegalStateException("Discovered tag is not IsoDep")
+        isoDep.timeout = 10000 // 10s timeout to allow full BAC exchange without dropping
         isoDep.connect()
 
         try {
@@ -745,18 +827,68 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             passportService?.sendSelectApplet(false)
             passportService?.doBAC(bacKey)
 
-            val com = readCOM()
-            val sod = readSOD()
-            val dg1 = readDG1()
-            val dg2 = readDG2()
-            val dg7 = readDG7()
-            val dg11 = readDG11()
-            val dg12 = readDG12()
-            val dg15 = readDG15()
+            val failedSteps = mutableListOf<String>()
+            val stepErrors = mutableMapOf<String, String>()
 
-            // You can continue calling other DG readers similarly
+            fun <T> safeRead(name: String, block: () -> T): T? {
+                return try {
+                    if (!isoDep.isConnected) {
+                        failedSteps.add(name)
+                        stepErrors[name] = "Card disconnected before step"
+                        null
+                    } else {
+                        block()
+                    }
+                } catch (e: Exception) {
+                    Log.e("READ_STEP", "Failed at step $name: ${e.message}")
+                    failedSteps.add(name)
+                    stepErrors[name] = e.message ?: "Read error"
+                    null
+                }
+            }
+
+            val com = safeRead("COM") { readCOM() } ?: emptyMap()
+            val sod = safeRead("SOD") { readSOD() } ?: emptyMap()
+            val dg1 = safeRead("DG1") { readDG1() } ?: emptyMap()
+            val dg2 = safeRead("DG2") { readDG2() } ?: emptyMap()
+            val dg7 = safeRead("DG7") { readDG7() } ?: emptyMap()
+            val dg11 = safeRead("DG11") { readDG11() } ?: emptyMap()
+            val dg12 = safeRead("DG12") { readDG12() } ?: emptyMap()
+            val dg15 = safeRead("DG15") { readDG15() } ?: emptyMap()
+
+            // Verify content of essential groups in case errors were swallowed internally
+            val docNum = dg1["documentNumber"] as? String
+            if (docNum.isNullOrBlank() && !failedSteps.contains("DG1")) {
+                failedSteps.add("DG1")
+                stepErrors["DG1"] = "MRZ data is empty"
+            }
+
+            val photo = dg2["photo"] as? String
+            val dg2Err = dg2["error"] as? String
+            if (photo.isNullOrBlank() && !failedSteps.contains("DG2")) {
+                failedSteps.add("DG2")
+                stepErrors["DG2"] = dg2Err ?: "Biometric photo is empty"
+            }
+
+            if (!isoDep.isConnected && !failedSteps.contains("CARD_DISCONNECTED")) {
+                failedSteps.add("CARD_DISCONNECTED")
+                stepErrors["CARD_DISCONNECTED"] = "Card disconnected before reading finished"
+            }
+
+            // Complete only if essential groups succeeded and card did not disconnect
+            val isComplete = !failedSteps.contains("DG1") && 
+                             !failedSteps.contains("DG2") && 
+                             !failedSteps.contains("CARD_DISCONNECTED")
+
+            Log.d("READ_PASSPORT", "Read completed. isComplete=$isComplete, failedSteps=$failedSteps")
 
             return mapOf(
+                "isComplete" to isComplete,
+                "isPartial" to !isComplete,
+                "failedSteps" to failedSteps,
+                "stepErrors" to stepErrors,
+                "hasPhoto" to !photo.isNullOrBlank(),
+                "hasMrz" to !docNum.isNullOrBlank(),
                 "com" to com,
                 "sod" to sod,
                 "dg1" to dg1,
@@ -771,7 +903,9 @@ class EkycPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             Log.e("READ_PASSPORT", "Error: ${e.message}")
             throw e
         } finally {
-            isoDep.close()
+            try {
+                isoDep.close()
+            } catch (_: Exception) {}
         }
     }
 
